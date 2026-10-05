@@ -110,6 +110,8 @@ export const ServerMessage = z.discriminatedUnion("type", [
     sessionToken: SessionToken,
   }),
   z.object({ type: z.literal("room"), room: RoomView }),
+  // Sent to a player who left or was kicked; the client forgets its session.
+  z.object({ type: z.literal("removed") }),
   z.object({
     type: z.literal("error"),
     reason: ErrorReason,
