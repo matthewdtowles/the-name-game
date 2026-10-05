@@ -1,19 +1,26 @@
 # Roadmap
 
-The single source of truth for what we're building, the decisions behind it, and the
-progress made. Tick boxes as work merges.
+What we're building and the decisions behind it. Work items are GitHub
+issues, and progress is tracked on the [project board](https://github.com/users/matthewdtowles/projects/2).
 
 ## The game
 
 1. Everyone secretly writes one name: a famous person or someone everyone in the room knows.
-2. The names are read aloud in shuffled order. Nobody knows who wrote which.
-3. Players take turns. On your turn, pick a player whose name hasn't been guessed yet
-   and guess which name they wrote.
-   - **Right:** they join your team and help you. You keep guessing.
-   - **Wrong:** your turn ends.
-4. Once a team has formed, its only unguessed member is its leader. Guessing the
-   leader correctly brings the **whole team** over to you.
+2. The names are read aloud once, in shuffled order. Nobody knows who wrote which.
+3. Everyone starts as a **team of one**. Teams take turns in **seat order**: the order
+   players joined, which the host can rearrange to match where people are sitting.
+4. On your team's turn, pick any player whose name hasn't been guessed yet. That's
+   always the leader of another team. Guess which name they wrote. Teammates share what
+   they know and decide together.
+   - **Right:** their whole team joins yours, and your team guesses again.
+   - **Wrong:** the turn passes to the next team in seat order.
 5. The first team to hold everyone wins.
+
+**Reminders and ending early.** By default the names may be re-read once as a reminder.
+The host can change the number of reminders, and 0 turns them off. Once no reminders
+remain, the host can **End round**: the largest team wins, and tied teams share the win.
+
+A merged team keeps the guessing leader's seat in the turn order.
 
 The paper version's flaw is that the reader recognizes handwriting. The app fixes that:
 it collects the names privately and reveals them shuffled, with no link to who wrote
@@ -26,7 +33,8 @@ each one.
 | Clients | One **Expo** codebase (SDK 56, expo-router, TypeScript) builds the iOS app, the Android app, and the **web** version | Guests can join from a browser without installing anything. The TV view is just another web route. The stack and patterns come from `i-want-my-mtg-mobile`. |
 | Backend | **Serverless on AWS**: API Gateway WebSocket API → one Lambda (Node, arm64) → DynamoDB (on-demand, TTL) | Costs about $0 when idle and pennies per thousand games. There's no server to patch or keep alive. Multi-AZ by default, and it scales if the game takes off. Game state survives deploys and phones going to sleep. |
 | Web hosting | Expo static web export in **S3 + CloudFront**, with Route 53 DNS | Same CloudFront setup as `i-want-my-mtg`. The same domain serves the universal-link files. |
-| Infra as code | **AWS CDK (TypeScript)** in `infra/`. A separate stack, and ideally a separate AWS account under your Organization | Kept apart from the MTG infra (that was the requirement). Billing is clear, and the blast radius stays contained. |
+| Infra as code | **AWS CDK (TypeScript)** in `infra/`, as its own stack in the existing AWS account. It's bootstrapped with a separate qualifier (`tng`), and every resource is tagged `project=the-name-game`. | Kept apart from the iwmm infra without the overhead of a second account. Separate CDK roles keep its deploys from touching iwmm resources. The tag isolates its costs. |
+| AWS access | A dedicated IAM user, `the-name-game-deployer` (local profile `the-name-game`), that can only assume the `cdk-tng-*` roles. CI uses a GitHub OIDC role scoped the same way. | Separate credentials from iwmm. No long-lived keys in GitHub. |
 | Repo layout | **npm-workspaces monorepo**: `app/` `server/` `shared/` `infra/` | The client and server share one typed protocol and one pure game-rules engine. |
 | Identity | No accounts. Joining issues a `playerId` and a secret `sessionToken`, kept in SecureStore or localStorage so a player can reconnect. Display names last for one game. | Matches the "no long-term identity" goal. The App Store privacy label can say "Data Not Collected". |
 | Authority | **Server-authoritative.** The server holds the full state and sends each client a redacted view. Authorship stays hidden until the game ends. | Nobody can read who wrote what from network traffic. |
@@ -76,85 +84,107 @@ each one.
 
 ## Phases
 
+Each phase is a GitHub milestone. Status lives on the [project board](https://github.com/users/matthewdtowles/projects/2).
+
 ### Phase 0: Foundations
-- [x] Create the GitHub repo
-- [ ] Buy the domain (Route 53). See the open questions.
-- [ ] Set up the AWS account or stack boundary, a $5/mo **AWS Budget** alarm, and the GitHub OIDC deploy role
-- [ ] Scaffold the monorepo: workspaces, TypeScript, ESLint, Prettier, `node --test` for `shared/` and `server/`, Jest for components
-- [ ] Add `shared/` protocol schemas and room or player types
-- [ ] CI: typecheck, lint, and test on PRs; versioning from PR titles on main
-- [ ] Add a CLAUDE.md with dev commands and conventions
+Accounts, AWS boundaries, monorepo scaffold, and CI.
 
-### Phase 1: MVP, collect and reveal names (web first)
-The goal is to play at a real party using only phone browsers. It ships to the web
-first, which skips app-store review and gets real-world feedback fastest.
-- [ ] Rules engine: lobby → submitting → revealing phases, host flag, host transfer when the host leaves
-- [ ] Host creates a room → code + QR code + share link
-- [ ] Join with a code or link; choose a display name (unique within the room)
-- [ ] Submit a secret name, editable until the reveal; others see only "✓ submitted"
-- [ ] Duplicate detection (case, accent, and whitespace normalized): the later submitter is privately asked to pick another name
-- [ ] Host sees submission progress. The reveal starts when everyone has submitted, or early if the host forces it.
-- [ ] Reveal on the host's phone: shuffled with `crypto` randomness, one at a time or as a full list, large type
-- [ ] Host can kick a player; room locks once the reveal starts
-- [ ] Reconnect and rejoin with the session token
-- [ ] Lambda + API Gateway WS + DynamoDB via CDK; staging and prod stages
-- [ ] Web export to S3/CloudFront; deploy workflow on merge
-- [ ] Privacy page (no data collected, rooms deleted within 24h)
-- [ ] Playtest at a real game night 🎉
+- [#1](https://github.com/matthewdtowles/the-name-game/issues/1) Choose the store name and register the domain
+- [#2](https://github.com/matthewdtowles/the-name-game/issues/2) Create the dedicated IAM user and local AWS profile
+- [#3](https://github.com/matthewdtowles/the-name-game/issues/3) Bootstrap CDK with the tng qualifier and a scoped execution policy
+- [#4](https://github.com/matthewdtowles/the-name-game/issues/4) Add an AWS Budget alarm for the project
+- [#5](https://github.com/matthewdtowles/the-name-game/issues/5) Set up the GitHub OIDC deploy role
+- [#6](https://github.com/matthewdtowles/the-name-game/issues/6) Scaffold the npm-workspaces monorepo
+- [#7](https://github.com/matthewdtowles/the-name-game/issues/7) Define the shared protocol schemas and game types
+- [#8](https://github.com/matthewdtowles/the-name-game/issues/8) Run typecheck, lint, and tests on every PR
+- [#9](https://github.com/matthewdtowles/the-name-game/issues/9) Version releases from the PR title on main
+- [#10](https://github.com/matthewdtowles/the-name-game/issues/10) Add a contributor guide with dev commands and conventions
 
-### Phase 2: TV display (web)
-- [ ] `/tv` route: shows a fresh code and QR code; phones join *that* room; the TV attaches as a non-playing **display** client
-- [ ] 10-foot UI: huge type, high contrast, works on TV browsers and when casting a Chrome tab or mirroring over AirPlay
-- [ ] Host phone becomes the remote: next, previous, show all, hide
-- [ ] Reveal settings: show each name for N seconds, how many times through the list, then the list disappears (it's a memory game)
-- [ ] Lobby on the TV: who has joined, who has submitted
+### Phase 1: MVP
+Collect names and reveal them. Web first, playable at a party with only phone browsers.
+
+- [#11](https://github.com/matthewdtowles/the-name-game/issues/11) Build the rules engine for the lobby, submission, and reveal phases
+- [#12](https://github.com/matthewdtowles/the-name-game/issues/12) Carry a room tier and enforce limits on the server
+- [#13](https://github.com/matthewdtowles/the-name-game/issues/13) Implement the WebSocket Lambda handler and DynamoDB room store
+- [#14](https://github.com/matthewdtowles/the-name-game/issues/14) Add a local dev server with an in-memory store
+- [#15](https://github.com/matthewdtowles/the-name-game/issues/15) Create a room with a code, QR code, and share link
+- [#16](https://github.com/matthewdtowles/the-name-game/issues/16) Join a room by code or link with a unique display name
+- [#17](https://github.com/matthewdtowles/the-name-game/issues/17) Submit a secret name
+- [#18](https://github.com/matthewdtowles/the-name-game/issues/18) Detect duplicate names and ask the later submitter to pick again
+- [#19](https://github.com/matthewdtowles/the-name-game/issues/19) Show submission progress and let the host start the reveal
+- [#20](https://github.com/matthewdtowles/the-name-game/issues/20) Reveal the shuffled names on the host's phone
+- [#21](https://github.com/matthewdtowles/the-name-game/issues/21) Add configurable reveal reminders
+- [#22](https://github.com/matthewdtowles/the-name-game/issues/22) Let the host kick players and lock the room at the reveal
+- [#23](https://github.com/matthewdtowles/the-name-game/issues/23) Reconnect players with their session token
+- [#24](https://github.com/matthewdtowles/the-name-game/issues/24) Deploy the backend stack with CDK
+- [#25](https://github.com/matthewdtowles/the-name-game/issues/25) Host the web build on S3 and CloudFront with a deploy workflow
+- [#26](https://github.com/matthewdtowles/the-name-game/issues/26) Publish the privacy page
+- [#27](https://github.com/matthewdtowles/the-name-game/issues/27) Playtest at a real game night
+
+### Phase 2: TV display
+Any smart TV browser, cast Chrome tab, or AirPlay mirror shows the game.
+
+- [#28](https://github.com/matthewdtowles/the-name-game/issues/28) Add the /tv display route
+- [#29](https://github.com/matthewdtowles/the-name-game/issues/29) Design the 10-foot TV UI
+- [#30](https://github.com/matthewdtowles/the-name-game/issues/30) Make the host's phone the reveal remote
+- [#31](https://github.com/matthewdtowles/the-name-game/issues/31) Add a timed reveal to the TV
+- [#32](https://github.com/matthewdtowles/the-name-game/issues/32) Show the lobby on the TV
 
 ### Phase 3: Native apps
-- [ ] App icon, splash screen, theme tokens, and dark mode (port `lib/theme` from `i-want-my-mtg-mobile`)
-- [ ] Universal links (iOS AASA) and App Links (Android `assetlinks.json`) for `/j/*`
-- [ ] Haptics, keep-awake during the reveal, share sheet for the invite link
-- [ ] In-app QR scanner (optional, since the system camera already handles links)
-- [ ] EAS build profiles and the `ship` workflow (copy from `i-want-my-mtg-mobile`)
-- [ ] TestFlight + Play internal testing → public on both stores
+iOS and Android apps in the public stores.
 
-### Phase 4: Run the whole game in the app
-- [ ] Turn tracking: whose turn it is, shown on every phone and the TV
-- [ ] Guess flow: the guesser picks a target, says the name aloud, and the **target** confirms "correct" or "wrong" on their own phone
-- [ ] Team merges: a correct guess on a leader pulls in their whole team
-- [ ] Live team board on the TV and phones; names stay visible to teammates (shared info)
-- [ ] Win detection, then the end-of-game "who wrote what" reveal
-- [ ] Undo the last action (host), for wrong taps
-- [ ] House-rule settings for the open rule questions below
-- [ ] "Play again" keeps the room and players and clears the names
+- [#33](https://github.com/matthewdtowles/the-name-game/issues/33) Port the theme tokens and dark mode, and add the app icon and splash screen
+- [#34](https://github.com/matthewdtowles/the-name-game/issues/34) Add universal links and App Links for /j/*
+- [#35](https://github.com/matthewdtowles/the-name-game/issues/35) Add haptics, keep-awake during the reveal, and a share sheet for the invite
+- [#36](https://github.com/matthewdtowles/the-name-game/issues/36) Add an in-app QR scanner
+- [#37](https://github.com/matthewdtowles/the-name-game/issues/37) Set up EAS build profiles and the ship workflow
+- [#38](https://github.com/matthewdtowles/the-name-game/issues/38) Release to TestFlight and Play internal testing, then the public stores
 
-### Phase 5: One-tap TV casting
-- [ ] Google Cast **custom Web Receiver**: the `/tv` page doubles as the receiver (register a Cast developer account, $5 one-time)
-- [ ] Cast button on the host's phone (`react-native-google-cast` via a config plugin and a dev build)
-- [ ] AirPlay: research external-display support beyond mirroring
-- [ ] (Maybe) native Android TV, Fire TV, or tvOS apps. Only if the web TV view falls short.
+### Phase 4: Full game
+Run the turns, guesses, and team merges in the app.
+
+- [#39](https://github.com/matthewdtowles/the-name-game/issues/39) Let the host arrange the seat order in the lobby
+- [#40](https://github.com/matthewdtowles/the-name-game/issues/40) Track team turns in seat order
+- [#41](https://github.com/matthewdtowles/the-name-game/issues/41) Build the guess flow with confirmation from the target
+- [#42](https://github.com/matthewdtowles/the-name-game/issues/42) Merge teams on a correct guess
+- [#43](https://github.com/matthewdtowles/the-name-game/issues/43) Show the live team board on phones and the TV
+- [#44](https://github.com/matthewdtowles/the-name-game/issues/44) Add End round once no reminders remain
+- [#45](https://github.com/matthewdtowles/the-name-game/issues/45) Detect the winner and reveal who wrote what
+- [#46](https://github.com/matthewdtowles/the-name-game/issues/46) Let the host undo the last action
+- [#47](https://github.com/matthewdtowles/the-name-game/issues/47) Add Play again that keeps the room and players
+
+### Phase 5: Casting
+One tap from the host's phone to the TV.
+
+- [#48](https://github.com/matthewdtowles/the-name-game/issues/48) Build a Google Cast custom Web Receiver from the /tv page
+- [#49](https://github.com/matthewdtowles/the-name-game/issues/49) Add the Cast button to the host's phone
+- [#50](https://github.com/matthewdtowles/the-name-game/issues/50) Research AirPlay external display beyond mirroring
+- [#51](https://github.com/matthewdtowles/the-name-game/issues/51) Evaluate native Android TV, Fire TV, or tvOS apps
 
 ### Phase 6: Polish
-- [ ] Sounds and animations for the reveal and team merges
-- [ ] Optional turn timer
-- [ ] Fuzzy duplicate detection ("Tom Hanks" vs "tom hanx")
-- [ ] Category prompts ("only cartoon characters", "only people in this room")
-- [ ] Accessibility pass (screen readers, dynamic type, contrast)
-- [ ] Localization groundwork
+Make it delightful.
 
-### Phase 7: Monetization (designed for now, built later)
-The core game stays free forever. Paid features belong to the **host**: one purchase
-covers the whole room, and guests never pay.
-- [ ] Rooms carry a `tier` from day one, and the server enforces limits per tier, so adding paid tiers later doesn't need a protocol change
-- [ ] **Host Pass** one-time in-app purchase via **RevenueCat** using anonymous app user IDs, which keeps the no-accounts design. The server verifies the entitlement with RevenueCat when a room is created.
-- [ ] Candidate Host Pass perks: TV themes, reveal animations and sounds, category packs, larger rooms, saved player lists on the host's device
-- [ ] Web purchases via Stripe (Apple requires in-app purchase for digital unlocks *inside* the iOS app)
-- [ ] Optional tip jar
-- [ ] Avoid ads. They clash with a fast party game and with the privacy story.
+- [#52](https://github.com/matthewdtowles/the-name-game/issues/52) Add sounds and animations for the reveal and team merges
+- [#53](https://github.com/matthewdtowles/the-name-game/issues/53) Add an optional turn timer
+- [#54](https://github.com/matthewdtowles/the-name-game/issues/54) Add fuzzy duplicate detection
+- [#55](https://github.com/matthewdtowles/the-name-game/issues/55) Add category prompts
+- [#56](https://github.com/matthewdtowles/the-name-game/issues/56) Do an accessibility pass
+- [#57](https://github.com/matthewdtowles/the-name-game/issues/57) Lay the groundwork for localization
 
-### Ongoing operations
-- [ ] CloudWatch alarms on Lambda errors and throttles; API Gateway throttling to cap runaway cost
-- [ ] Per-connection message rate limit; room-code brute-force protection (rooms lock after the reveal starts)
-- [ ] Track rough usage: games created per day, in aggregate, with no per-user data
+### Phase 7: Monetization
+The core game stays free. Paid features belong to the host, and guests never pay.
+
+- [#58](https://github.com/matthewdtowles/the-name-game/issues/58) Decide the Host Pass perks and price
+- [#59](https://github.com/matthewdtowles/the-name-game/issues/59) Sell the Host Pass in-app through RevenueCat
+- [#60](https://github.com/matthewdtowles/the-name-game/issues/60) Sell the Host Pass on the web through Stripe
+- [#61](https://github.com/matthewdtowles/the-name-game/issues/61) Add an optional tip jar
+
+### Operations
+Keep it running, cheap, and safe.
+
+- [#62](https://github.com/matthewdtowles/the-name-game/issues/62) Add CloudWatch alarms for Lambda errors and throttles
+- [#63](https://github.com/matthewdtowles/the-name-game/issues/63) Throttle API Gateway and rate-limit each connection
+- [#64](https://github.com/matthewdtowles/the-name-game/issues/64) Track aggregate usage
 
 ## Expected cost
 
@@ -171,12 +201,4 @@ covers the whole room, and guests never pay.
 - **Domain and store name.** "The Name Game" is a common phrase (and a song). We need a
   domain and possibly a more distinctive store name. Check App Store and Play Store
   conflicts before committing.
-- **Turn order after a wrong guess.** Does play move to the next player in seat order,
-  or to the person you guessed wrong? This becomes a house-rule setting.
-- **Reveal rules.** How many times are the names read through? Can anyone ask to hear
-  the list again later?
-- **Captured players.** Do players on a team still take their own turns, or does only
-  the leader guess?
 - **Room size.** What's the largest realistic group? This sets the free-tier cap, if any.
-- **Separate AWS account or just a separate stack?** A separate account is cleaner. A
-  separate stack is fewer steps.
