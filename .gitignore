@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.expo/
+web-build/
+cdk.out/
+*.tsbuildinfo
+.env*
+!.env.example
+.DS_Store
+expo-env.d.ts
