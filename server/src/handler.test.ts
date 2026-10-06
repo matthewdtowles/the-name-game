@@ -89,6 +89,15 @@ describe("messages", () => {
     assert.equal(last("c1", "error").reason, "invalid_message");
   });
 
+  it("ignores heartbeats, in a room or not", async () => {
+    await send("c1", { type: "ping" });
+    await hostAndJoin();
+    const before = inbox.get("c-host")?.length;
+    await send("c-host", { type: "ping" });
+    assert.equal(inbox.has("c1"), false);
+    assert.equal(inbox.get("c-host")?.length, before);
+  });
+
   it("rejects game actions from a connection that isn't in a room", async () => {
     await send("c1", { type: "startReveal" });
     assert.equal(last("c1", "error").reason, "not_in_room");

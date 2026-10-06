@@ -50,6 +50,7 @@ export async function handleMessage(
   const parsed = ClientMessage.safeParse(safeJson(raw));
   if (!parsed.success) return sendError(deps, connectionId, "invalid_message");
   const message = parsed.data;
+  if (message.type === "ping") return;
   const binding = await deps.store.getBinding(connectionId);
 
   if (
@@ -261,7 +262,10 @@ async function broadcast(deps: Deps, record: RoomRecord): Promise<void> {
 }
 
 function toAction(
-  message: Exclude<ClientMessage, { type: "create" | "join" | "resume" }>,
+  message: Exclude<
+    ClientMessage,
+    { type: "create" | "join" | "resume" | "ping" }
+  >,
   playerId: string,
 ): Action {
   switch (message.type) {

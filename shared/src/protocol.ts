@@ -59,6 +59,9 @@ export const ClientMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("finishReveal") }),
   z.object({ type: z.literal("remind") }),
   z.object({ type: z.literal("leave") }),
+  // Heartbeat: keeps an idle socket open (API Gateway closes them after 10
+  // minutes). The server ignores it.
+  z.object({ type: z.literal("ping") }),
 ]);
 
 export const ErrorReason = z.enum([
