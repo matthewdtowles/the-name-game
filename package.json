@@ -9,6 +9,7 @@
     "infra"
   ],
   "scripts": {
+    "dev": "npm run dev -w @tng/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

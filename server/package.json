@@ -1,5 +1,17 @@
 {
   "name": "@tng/server",
   "version": "0.0.0-dev",
-  "private": true
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/dev.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@tng/shared": "*",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
+  }
 }
