@@ -12,9 +12,9 @@ step between workspaces).
 | Workspace | What it is |
 |---|---|
 | `shared/` (`@tng/shared`) | The wire protocol (`protocol.ts`, zod schemas) and the pure rules engine (`game.ts`). Imported by both the app and the server. |
-| `server/` (`@tng/server`) | `handler.ts` turns socket events into rule actions behind `Store` and `Send` interfaces. `dev.ts` runs it over `ws` with `MemoryStore`. |
+| `server/` (`@tng/server`) | `handler.ts` turns socket events into rule actions behind `Store` and `Send` interfaces. `dev.ts` runs it over `ws` with `MemoryStore`; `lambda.ts` runs it on API Gateway with `DynamoStore`. `smoke.ts` plays a real game against any URL. |
 | `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/client.ts` owns the socket: it resumes the stored session on every (re)connect, reconnects with backoff, and sends a heartbeat. Screens read it through `useGame()`. |
-| `infra/` (`@tng/infra`) | AWS CDK, once the backend is deployed. `infra/setup/` holds the one-time account setup (see its README). |
+| `infra/` (`@tng/infra`) | AWS CDK: `TheNameGameStagingBackend` and `TheNameGameProdBackend` (API Gateway WebSocket, one Lambda, DynamoDB with TTL). `infra/setup/` holds the one-time account setup (see its README). |
 
 ## Commands
 
@@ -30,7 +30,14 @@ npm run typecheck
 npm run lint                # lint:fix to autofix
 npm run format              # format:check in CI
 npm test -w @tng/shared     # one workspace
+
+npm run smoke -w @tng/server -- wss://...   # play a game against a server
+cd infra && AWS_PROFILE=the-name-game npx cdk deploy TheNameGameStagingBackend
 ```
+
+Merging to `main` deploys both backends from CI: staging, a smoke test against
+it, then prod and a smoke test against that. Deploy by hand only to try
+something on staging.
 
 ## How the game is built
 

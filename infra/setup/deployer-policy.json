@@ -17,6 +17,8 @@
       "Action": [
         "cloudformation:DescribeStacks",
         "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:ListStackResources",
         "cloudformation:ListStacks",
         "cloudformation:GetTemplate"
       ],
@@ -38,6 +40,7 @@
       "Effect": "Allow",
       "Action": [
         "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
         "logs:GetQueryResults",
         "logs:StopQuery"
       ],

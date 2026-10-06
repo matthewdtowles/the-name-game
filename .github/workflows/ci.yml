@@ -106,3 +106,43 @@ jobs:
             --title "${{ needs.version.outputs.version }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Deploys the backend on every merge to main: staging first, a real game
+  # against it, then prod. CDK leaves unchanged stacks alone. Credentials come
+  # from GitHub's OIDC token via tng-github-deploy (infra/setup), which can only
+  # deploy TheNameGame* stacks.
+  deploy:
+    needs: [release]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy staging
+        working-directory: infra
+        run: npx cdk deploy TheNameGameStagingBackend --require-approval never --outputs-file ../staging.json
+
+      - name: Smoke test staging
+        run: ./.github/scripts/smoke.sh staging.json TheNameGameStagingBackend
+
+      - name: Deploy prod
+        working-directory: infra
+        run: npx cdk deploy TheNameGameProdBackend --require-approval never --outputs-file ../prod.json
+
+      - name: Smoke test prod
+        run: ./.github/scripts/smoke.sh prod.json TheNameGameProdBackend
