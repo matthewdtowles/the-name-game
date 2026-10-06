@@ -1,0 +1,47 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DeployThroughTngCdkRoles",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-deploy-role-*",
+        "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-file-publishing-role-*",
+        "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-image-publishing-role-*"
+      ]
+    },
+    {
+      "Sid": "ReadAppStacks",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:ListStacks",
+        "cloudformation:GetTemplate"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadAppLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents",
+        "logs:StartLiveTail",
+        "logs:StartQuery"
+      ],
+      "Resource": "arn:aws:logs:*:ACCOUNT_ID:log-group:/aws/lambda/TheNameGame*"
+    },
+    {
+      "Sid": "LogQueriesAndListing",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:GetQueryResults",
+        "logs:StopQuery"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DeployThroughTngCdkRoles",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-deploy-role-*",
+        "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-file-publishing-role-*",
+        "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-image-publishing-role-*"
+      ]
+    }
+  ]
+}
