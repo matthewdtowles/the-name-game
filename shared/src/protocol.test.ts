@@ -41,6 +41,7 @@ describe("ClientMessage", () => {
       { type: "finishReveal" },
       { type: "remind" },
       { type: "leave" },
+      { type: "ping" },
     ];
     for (const message of messages) {
       assert.equal(

@@ -13,7 +13,7 @@ step between workspaces).
 |---|---|
 | `shared/` (`@tng/shared`) | The wire protocol (`protocol.ts`, zod schemas) and the pure rules engine (`game.ts`). Imported by both the app and the server. |
 | `server/` (`@tng/server`) | `handler.ts` turns socket events into rule actions behind `Store` and `Send` interfaces. `dev.ts` runs it over `ws` with `MemoryStore`. |
-| `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. |
+| `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/client.ts` owns the socket: it resumes the stored session on every (re)connect, reconnects with backoff, and sends a heartbeat. Screens read it through `useGame()`. |
 | `infra/` (`@tng/infra`) | AWS CDK, once the backend is deployed. Empty for now. |
 
 ## Commands
@@ -23,6 +23,7 @@ npm install                 # always from the root, with no -w (see Gotchas)
 npm run dev                 # game server on ws://localhost:8787 (PORT to change)
 npm run web -w @tng/app     # the app in a browser
 npm run start -w @tng/app   # Expo dev server for a phone or simulator
+                            # (phones need EXPO_PUBLIC_GAME_SERVER_URL=ws://<lan-ip>:8787)
 
 npm test                    # every workspace: node:test for shared/server, Jest for app
 npm run typecheck
