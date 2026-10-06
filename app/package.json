@@ -12,9 +12,11 @@
     "test": "jest"
   },
   "dependencies": {
+    "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@tng/shared": "*",
     "expo": "~56.0.23",
     "expo-constants": "~56.0.27",
+    "expo-font": "~56.0.7",
     "expo-linking": "~56.0.18",
     "expo-router": "~56.2.21",
     "expo-secure-store": "~56.0.4",
@@ -22,8 +24,10 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-qrcode-svg": "^6.3.26",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
