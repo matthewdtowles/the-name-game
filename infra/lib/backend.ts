@@ -19,11 +19,7 @@ import type { Construct } from "constructs";
 // rooms in DynamoDB. Nothing here costs anything while nobody is playing.
 
 export class BackendStack extends Stack {
-  constructor(
-    scope: Construct,
-    id: string,
-    props: StackProps & { stage: "staging" | "prod" },
-  ) {
+  constructor(scope: Construct, id: string, props: StackProps) {
     super(scope, id, props);
 
     // Rooms are ephemeral: TTL removes each one a day after its last activity,

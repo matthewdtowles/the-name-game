@@ -8,5 +8,5 @@ const app = new App();
 Tags.of(app).add("project", "the-name-game");
 
 const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: "us-east-1" };
-new BackendStack(app, "TheNameGameStagingBackend", { env, stage: "staging" });
-new BackendStack(app, "TheNameGameProdBackend", { env, stage: "prod" });
+new BackendStack(app, "TheNameGameStagingBackend", { env });
+new BackendStack(app, "TheNameGameProdBackend", { env });
