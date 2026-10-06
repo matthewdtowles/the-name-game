@@ -1,0 +1,7 @@
+{
+  "BudgetName": "the-name-game",
+  "BudgetType": "COST",
+  "TimeUnit": "MONTHLY",
+  "BudgetLimit": { "Amount": "5", "Unit": "USD" },
+  "CostFilters": { "TagKeyValue": ["user:project$the-name-game"] }
+}

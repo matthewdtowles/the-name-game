@@ -1,0 +1,54 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AppResourcesByName",
+      "Effect": "Allow",
+      "Action": ["s3:*", "dynamodb:*", "lambda:*", "logs:*"],
+      "Resource": [
+        "arn:aws:s3:::thenamegame*",
+        "arn:aws:dynamodb:*:ACCOUNT_ID:table/TheNameGame*",
+        "arn:aws:lambda:*:ACCOUNT_ID:function:TheNameGame*",
+        "arn:aws:logs:*:ACCOUNT_ID:log-group:/aws/lambda/TheNameGame*",
+        "arn:aws:logs:*:ACCOUNT_ID:log-group:TheNameGame*"
+      ]
+    },
+    {
+      "Sid": "AppServicesWithoutNameScoping",
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:*",
+        "cloudfront:*",
+        "route53:*",
+        "acm:*",
+        "cloudwatch:*",
+        "sns:*",
+        "logs:CreateLogDelivery",
+        "logs:DescribeLogGroups",
+        "lambda:GetLayerVersion"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AppRolesOnly",
+      "Effect": "Allow",
+      "Action": "iam:*",
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/TheNameGame*",
+        "arn:aws:iam::ACCOUNT_ID:policy/TheNameGame*"
+      ]
+    },
+    {
+      "Sid": "ReadIam",
+      "Effect": "Allow",
+      "Action": ["iam:Get*", "iam:List*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BootstrapVersion",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameters",
+      "Resource": "arn:aws:ssm:*:ACCOUNT_ID:parameter/cdk-bootstrap/tng/*"
+    }
+  ]
+}
