@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+# Queue runs on the same ref instead of overlapping them, so two quick merges to
+# main can't both compute a version from the same latest tag and release out
+# of order.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # PR merge gates: typecheck, lint, and test.
   typecheck:
@@ -37,8 +44,7 @@ jobs:
 
       - run: npm run format:check
 
-  # Every workspace's suite: node:test for shared/ and server/, Jest for the
-  # app's components.
+  # Every workspace's `test` script.
   test:
     runs-on: ubuntu-latest
     steps:
