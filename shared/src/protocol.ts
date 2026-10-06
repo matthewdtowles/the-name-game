@@ -67,10 +67,12 @@ export const ErrorReason = z.enum([
   "room_locked",
   "room_full",
   "session_expired",
+  "not_in_room",
   "display_name_taken",
   "duplicate_name",
   "not_host",
   "wrong_phase",
+  "not_enough_names",
   "no_reminders_left",
 ]);
 
