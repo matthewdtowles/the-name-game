@@ -14,7 +14,7 @@ step between workspaces).
 | `shared/` (`@tng/shared`) | The wire protocol (`protocol.ts`, zod schemas) and the pure rules engine (`game.ts`). Imported by both the app and the server. |
 | `server/` (`@tng/server`) | `handler.ts` turns socket events into rule actions behind `Store` and `Send` interfaces. `dev.ts` runs it over `ws` with `MemoryStore`. |
 | `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/client.ts` owns the socket: it resumes the stored session on every (re)connect, reconnects with backoff, and sends a heartbeat. Screens read it through `useGame()`. |
-| `infra/` (`@tng/infra`) | AWS CDK, once the backend is deployed. Empty for now. |
+| `infra/` (`@tng/infra`) | AWS CDK, once the backend is deployed. `infra/setup/` holds the one-time account setup (see its README). |
 
 ## Commands
 
@@ -49,6 +49,14 @@ npm test -w @tng/shared     # one workspace
   both layers.
 - **Rooms are written optimistically.** `mutate` re-reads and retries when the
   version moved. A room that empties is deleted.
+
+## AWS
+
+Use the `the-name-game` profile for everything in this app
+(`aws sso login --profile the-name-game`). It can deploy only through this app's
+`tng` CDK roles, and only to stacks named `TheNameGame*`; it can't see or change
+anything else in the account. CDK apps must use the `tng` bootstrap qualifier.
+The admin profile is only for rerunning `infra/setup/setup.sh`.
 
 ## Conventions
 
