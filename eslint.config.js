@@ -12,4 +12,10 @@ module.exports = [
     files: ["shared/**"],
     rules: { "@typescript-eslint/no-redeclare": "off" },
   },
+  {
+    // Expo inlines EXPO_PUBLIC_* vars into app bundles, so it forbids dynamic
+    // env reads. Server and infra code reads a real process.env at runtime.
+    files: ["server/**", "infra/**"],
+    rules: { "expo/no-dynamic-env-var": "off" },
+  },
 ];

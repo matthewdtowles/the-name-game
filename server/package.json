@@ -5,13 +5,19 @@
   "scripts": {
     "dev": "tsx watch src/dev.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "smoke": "tsx src/smoke.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.1146.0",
+    "@aws-sdk/client-dynamodb": "^3.1146.0",
+    "@aws-sdk/lib-dynamodb": "^3.1146.0",
     "@tng/shared": "*",
     "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.18.2"
+    "@types/aws-lambda": "^8.10.164",
+    "@types/ws": "^8.18.2",
+    "aws-sdk-client-mock": "^4.1.0"
   }
 }
