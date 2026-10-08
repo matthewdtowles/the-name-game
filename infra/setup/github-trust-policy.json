@@ -10,7 +10,10 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:matthewdtowles/the-name-game:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub": [
+            "repo:matthewdtowles@16619682/the-name-game@1406425003:ref:refs/heads/main",
+            "repo:matthewdtowles/the-name-game:ref:refs/heads/main"
+          ]
         }
       }
     }
