@@ -2,6 +2,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 import type { Session, SessionStorage } from "./client";
+import type { CodeStorage } from "./screenClient";
 
 const KEY = "tng.session";
 
@@ -21,6 +22,14 @@ export const deviceSessionStorage: SessionStorage =
           SecureStore.setItemAsync(KEY, JSON.stringify(session)),
         clear: () => SecureStore.deleteItemAsync(KEY),
       };
+
+// The room a TV is showing, so a reload goes back to it. TVs are browsers.
+const TV_KEY = "tng.tv";
+export const tvCodeStorage: CodeStorage = {
+  load: () => tryLocalStorage((s) => s.getItem(TV_KEY)),
+  save: (code) => void tryLocalStorage((s) => s.setItem(TV_KEY, code)),
+  clear: () => void tryLocalStorage((s) => s.removeItem(TV_KEY)),
+};
 
 function tryLocalStorage<T>(access: (storage: Storage) => T): T | null {
   try {

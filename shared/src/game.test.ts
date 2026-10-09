@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   apply,
   createRoom,
+  screenFor,
   normalizeName,
   TIER_LIMITS,
   viewFor,
@@ -212,13 +213,13 @@ describe("settings", () => {
     const room = must(lobby("Sam"), {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders: 3 },
+      settings: { reminders: 3, revealSeconds: null },
     });
     assert.equal(room.remindersLeft, 3);
   });
 
   it("is host-only and lobby-only", () => {
-    const settings = { reminders: 0 };
+    const settings = { reminders: 0, revealSeconds: null };
     assert.equal(
       reason(lobby("Sam", "Alex"), {
         type: "updateSettings",
@@ -255,7 +256,7 @@ describe("the reveal", () => {
       displayName: "Late",
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
-    assert.deepEqual(room.revealOrder, ["Cher", "Prince"]);
+    assert.deepEqual(room.reveal?.order, ["Cher", "Prince"]);
   });
 
   it("shuffles the names", () => {
@@ -266,7 +267,7 @@ describe("the reveal", () => {
       () => 0,
     );
     assert.ok(result.ok);
-    assert.deepEqual(result.room.revealOrder, ["Prince", "Madonna", "Cher"]);
+    assert.deepEqual(result.room.reveal?.order, ["Prince", "Madonna", "Cher"]);
   });
 
   it("is driven by the host", () => {
@@ -293,7 +294,7 @@ describe("reminders", () => {
     room = must(room, {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders },
+      settings: { reminders, revealSeconds: null },
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
     return must(room, { type: "finishReveal", playerId: "p0" });
@@ -303,7 +304,10 @@ describe("reminders", () => {
     const room = must(playing(1), { type: "remind", playerId: "p0" });
     assert.equal(room.phase, "reveal");
     assert.equal(room.remindersLeft, 0);
-    assert.deepEqual([...(room.revealOrder ?? [])].sort(), ["Cher", "Prince"]);
+    assert.deepEqual([...(room.reveal?.order ?? [])].sort(), [
+      "Cher",
+      "Prince",
+    ]);
   });
 
   it("runs out", () => {
@@ -343,10 +347,13 @@ describe("viewFor", () => {
       type: "startReveal",
       playerId: "p0",
     });
-    assert.deepEqual(viewFor(revealing, "p0").names, ["Cher", "Prince"]);
-    assert.equal(viewFor(revealing, "p1").names, null);
+    assert.deepEqual(viewFor(revealing, "p0").reveal?.names, [
+      "Cher",
+      "Prince",
+    ]);
+    assert.equal(viewFor(revealing, "p1").reveal?.names, null);
     const playing = must(revealing, { type: "finishReveal", playerId: "p0" });
-    assert.equal(viewFor(playing, "p0").names, null);
+    assert.equal(viewFor(playing, "p0").reveal, null);
   });
 
   it("never exposes session tokens", () => {
@@ -360,5 +367,140 @@ describe("viewFor", () => {
 describe("normalizeName", () => {
   it("ignores case, accents, and extra spacing", () => {
     assert.equal(normalizeName("  Beyoncé   Knowles "), "beyonce knowles");
+  });
+});
+
+describe("TVs", () => {
+  const tvRoom = () =>
+    must(createRoom({ code: "WXYZ", tier: "free" }), { type: "attachDisplay" });
+
+  it("lets a TV open a room that its first player hosts", () => {
+    let room = tvRoom();
+    assert.equal(room.hostId, null);
+    assert.equal(room.displays, 1);
+    room = must(room, {
+      type: "join",
+      playerId: "p1",
+      sessionToken: "t1",
+      displayName: "Sam",
+    });
+    room = must(room, {
+      type: "join",
+      playerId: "p2",
+      sessionToken: "t2",
+      displayName: "Alex",
+    });
+    assert.equal(room.hostId, "p1");
+  });
+
+  it("leaves the room hostless when its last player goes", () => {
+    let room = must(tvRoom(), {
+      type: "join",
+      playerId: "p1",
+      sessionToken: "t1",
+      displayName: "Sam",
+    });
+    room = must(room, { type: "leave", playerId: "p1" });
+    assert.equal(room.hostId, null);
+    assert.equal(room.displays, 1);
+  });
+
+  it("counts TVs coming and going, never below zero", () => {
+    let room = must(tvRoom(), { type: "attachDisplay" });
+    room = must(room, { type: "detachDisplay" });
+    room = must(room, { type: "detachDisplay" });
+    room = must(room, { type: "detachDisplay" });
+    assert.equal(room.displays, 0);
+  });
+
+  it("moves the names off the host's phone while a TV is attached", () => {
+    let room = must(submitted("Cher", "Prince"), { type: "attachDisplay" });
+    room = must(room, { type: "startReveal", playerId: "p0" });
+    const host = viewFor(room, "p0");
+    assert.equal(host.tv, true);
+    assert.equal(host.reveal?.names, null);
+    assert.equal(host.reveal?.total, 2);
+  });
+
+  it("shows only the current slip, or every slip when asked", () => {
+    let room = must(submitted("Cher", "Prince", "Madonna"), {
+      type: "startReveal",
+      playerId: "p0",
+    });
+    assert.deepEqual(screenFor(room).reveal?.slips, ["Cher"]);
+    room = must(room, { type: "revealTo", playerId: "p0", index: 2 });
+    assert.deepEqual(screenFor(room).reveal, {
+      index: 2,
+      total: 3,
+      slips: ["Madonna"],
+    });
+    room = must(room, { type: "revealAll", playerId: "p0", all: true });
+    assert.deepEqual(screenFor(room).reveal?.slips, [
+      "Cher",
+      "Prince",
+      "Madonna",
+    ]);
+  });
+
+  it("never shows a submitted name outside the reveal", () => {
+    const lobbyRoom = submitted("Cher", "Prince");
+    assert.equal(JSON.stringify(screenFor(lobbyRoom)).includes("Cher"), false);
+    let room = must(lobbyRoom, { type: "startReveal", playerId: "p0" });
+    room = must(room, { type: "finishReveal", playerId: "p0" });
+    assert.equal(screenFor(room).reveal, null);
+    assert.equal(JSON.stringify(screenFor(room)).includes("Cher"), false);
+  });
+});
+
+describe("stepping through the reveal", () => {
+  const revealing = () =>
+    must(submitted("Cher", "Prince"), { type: "startReveal", playerId: "p0" });
+
+  it("is the host's to drive", () => {
+    assert.equal(
+      reason(revealing(), { type: "revealTo", playerId: "p1", index: 1 }),
+      "not_host",
+    );
+    assert.equal(
+      reason(revealing(), { type: "revealAll", playerId: "p1", all: true }),
+      "not_host",
+    );
+  });
+
+  it("goes to a slip by position and stays in range", () => {
+    const room = must(revealing(), {
+      type: "revealTo",
+      playerId: "p0",
+      index: 1,
+    });
+    assert.equal(room.reveal?.index, 1);
+    assert.equal(
+      reason(revealing(), { type: "revealTo", playerId: "p0", index: 2 }),
+      "invalid_message",
+    );
+  });
+
+  it("only happens during the reveal", () => {
+    assert.equal(
+      reason(submitted("Cher", "Prince"), {
+        type: "revealTo",
+        playerId: "p0",
+        index: 0,
+      }),
+      "wrong_phase",
+    );
+  });
+
+  it("starts each reminder from the first slip", () => {
+    let room = must(revealing(), {
+      type: "revealTo",
+      playerId: "p0",
+      index: 1,
+    });
+    room = must(room, { type: "revealAll", playerId: "p0", all: true });
+    room = must(room, { type: "finishReveal", playerId: "p0" });
+    room = must(room, { type: "remind", playerId: "p0" });
+    assert.equal(room.reveal?.index, 0);
+    assert.equal(room.reveal?.all, false);
   });
 });

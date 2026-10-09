@@ -13,7 +13,7 @@ step between workspaces).
 |---|---|
 | `shared/` (`@tng/shared`) | The wire protocol (`protocol.ts`, zod schemas) and the pure rules engine (`game.ts`). Imported by both the app and the server. |
 | `server/` (`@tng/server`) | `handler.ts` turns socket events into rule actions behind `Store` and `Send` interfaces. `dev.ts` runs it over `ws` with `MemoryStore`; `lambda.ts` runs it on API Gateway with `DynamoStore`. `smoke.ts` plays a real game against any URL. |
-| `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/client.ts` owns the socket: it resumes the stored session on every (re)connect, reconnects with backoff, and sends a heartbeat. Screens read it through `useGame()`. |
+| `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/connection.ts` keeps a socket up (backoff, heartbeat); `client.ts` (players, resumes the stored session) and `screenClient.ts` (TVs) build on it. Screens read the player client through `useGame()`; TV routes don't start it. |
 | `infra/` (`@tng/infra`) | AWS CDK, per stage: `TheNameGame{Staging,Prod}Backend` (API Gateway WebSocket on `play.` its domain, one Lambda, DynamoDB with TTL) and `TheNameGame{Staging,Prod}Web` (the web export in S3 behind CloudFront). Prod is `whosename.app`, staging `staging.whosename.app`. `infra/setup/` holds the one-time account setup (see its README). |
 
 ## Commands
@@ -45,10 +45,16 @@ then prod the same way. Deploy by hand only to try something on staging; after
 - **The server is authoritative.** Clients send intents (`ClientMessage`). The
   server applies them with `apply(room, action, random)` and sends every player
   their own `viewFor(room, playerId)`.
-- **Redaction lives in `viewFor`.** Other players' secret names and session
-  tokens never leave the server. The shuffled list goes only to the host, and
-  only during the reveal. Every new field on `RoomView` needs that same
-  thought, plus a test that it doesn't leak.
+- **Redaction lives in `viewFor` (players) and `screenFor` (TVs).** Other
+  players' secret names and session tokens never leave the server. During the
+  reveal the host's phone gets the shuffled list only when no TV is attached;
+  a TV gets only the slips on screen. Every new field on `RoomView` or
+  `ScreenView` needs that same thought, plus a test that it doesn't leak.
+- **TVs watch, phones play.** `whosename.app/tv` attaches as a display
+  (`{ type: "display" }`): it opens a room whose first player hosts, or with a
+  code re-attaches after a reload. A TV's binding has no player and may only
+  watch. The reveal's position lives in the room, so the host's phone is the
+  remote; with a pace set, the host's phone advances it.
 - **The rules engine is pure:** no I/O, no clock, no `Math.random`. The server
   supplies ids, tokens, and a crypto-backed random source, so tests can pass a
   deterministic one.

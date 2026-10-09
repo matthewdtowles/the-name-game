@@ -4,7 +4,7 @@ import QRCode from "react-native-qrcode-svg";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useGame } from "../lib/game/GameContext";
-import { joinUrl, shareInvite } from "../lib/invite";
+import { joinUrl, shareInvite, tvUrl } from "../lib/invite";
 import { colors, fonts, space, type } from "../lib/theme";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
@@ -26,7 +26,6 @@ export function Lobby({ room }: { room: RoomView }) {
       footer={
         isHost ? (
           <>
-            <Reminders room={room} />
             {namesIn < 2 ? (
               <Button label="Read the names" disabled onPress={() => {}} />
             ) : waitingOn > 0 ? (
@@ -50,17 +49,32 @@ export function Lobby({ room }: { room: RoomView }) {
           </>
         ) : (
           <Text style={styles.hint}>
-            {host?.displayName ?? "The host"} will read the names once
+            {host?.displayName ?? "The host"} will{" "}
+            {room.tv ? "put the names on the TV" : "read the names"} once
             everyone’s in.
           </Text>
         )
       }
     >
       <Invite code={room.code} />
+      {room.tv ? (
+        <Text style={[styles.hint, styles.onTv]}>✓ Showing on a TV</Text>
+      ) : isHost ? (
+        <Text style={styles.hint}>
+          Have a TV? Open {tvUrl(room.code)} in its web browser.
+        </Text>
+      ) : null}
       {game.status !== "open" ? (
         <Banner tone="info" message="Reconnecting…" />
       ) : null}
       <YourSlip submittedName={room.you.submittedName} />
+      {isHost ? (
+        <View style={styles.section}>
+          <Text style={styles.heading}>Game settings</Text>
+          <Reminders room={room} />
+          <RevealPace room={room} />
+        </View>
+      ) : null}
       <View style={styles.section}>
         <Text style={styles.heading}>Players</Text>
         <PlayerList
@@ -210,7 +224,10 @@ function Reminders({ room }: { room: RoomView }) {
   const game = useGame();
   const count = room.settings.reminders;
   const set = (reminders: number) =>
-    game.send({ type: "updateSettings", settings: { reminders } });
+    game.send({
+      type: "updateSettings",
+      settings: { ...room.settings, reminders },
+    });
   return (
     <View style={styles.reminders}>
       <View style={styles.remindersText}>
@@ -234,6 +251,49 @@ function Reminders({ room }: { room: RoomView }) {
         disabled={count === MAX_REMINDERS}
         onPress={() => set(count + 1)}
       />
+    </View>
+  );
+}
+
+const PACES = [null, 5, 8, 12] as const;
+
+// How the reveal moves: by the host's hand, or by itself every few seconds.
+function RevealPace({ room }: { room: RoomView }) {
+  const game = useGame();
+  const seconds = room.settings.revealSeconds;
+  return (
+    <View style={styles.pace}>
+      <Text style={styles.strong}>Reveal pace</Text>
+      <Text style={styles.hint}>
+        {seconds === null
+          ? "You move on to the next name."
+          : `Each name stays up for ${seconds} seconds.`}
+      </Text>
+      <View style={styles.chips}>
+        {PACES.map((pace) => {
+          const selected = pace === seconds;
+          return (
+            <Pressable
+              key={pace ?? "hand"}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() =>
+                game.send({
+                  type: "updateSettings",
+                  settings: { ...room.settings, revealSeconds: pace },
+                })
+              }
+              style={[styles.chip, selected && styles.chipSelected]}
+            >
+              <Text
+                style={[styles.chipText, selected && styles.chipTextSelected]}
+              >
+                {pace === null ? "By hand" : `${pace} s`}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -296,6 +356,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   stepperDisabled: { opacity: 0.3 },
+  onTv: { color: colors.felt },
+  pace: { gap: space.sm },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  chip: {
+    minHeight: 40,
+    paddingHorizontal: space.lg,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: colors.line,
+    justifyContent: "center",
+  },
+  chipSelected: { backgroundColor: colors.paper, borderColor: colors.paper },
+  chipText: { ...type.strong, color: colors.paper },
+  chipTextSelected: { color: colors.ink },
   stepperText: {
     fontFamily: fonts.semibold,
     fontSize: 22,

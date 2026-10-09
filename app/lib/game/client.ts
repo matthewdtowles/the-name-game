@@ -1,13 +1,17 @@
-import {
+import type {
+  ClientMessage,
+  ErrorReason,
+  RoomView,
   ServerMessage,
-  type ClientMessage,
-  type ErrorReason,
-  type RoomView,
 } from "@tng/shared";
 
-// One long-lived connection to the game server. It keeps the player in their
-// room across dropped sockets, sleeping phones and app restarts: the session
-// from the server's `welcome` is stored, and every new socket resumes it.
+import { Connection, type Status } from "./connection";
+
+export { HEARTBEAT_MS, RECONNECT_DELAYS_MS, type Status } from "./connection";
+
+// A player's connection to the game. It keeps them in their room across
+// dropped sockets, sleeping phones and app restarts: the session from the
+// server's `welcome` is stored, and every new socket resumes it.
 
 export interface Session {
   code: string;
@@ -21,20 +25,12 @@ export interface SessionStorage {
   clear(): Promise<void>;
 }
 
-export type Status = "connecting" | "open" | "closed";
-
 export interface GameState {
   status: Status;
   session: Session | null;
   room: RoomView | null;
   error: { reason: ErrorReason; message: string } | null;
 }
-
-// WebSocket.OPEN, spelled out so the client doesn't need the global to load.
-const OPEN = 1;
-// API Gateway drops sockets idle for 10 minutes.
-export const HEARTBEAT_MS = 4 * 60 * 1000;
-export const RECONNECT_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 15000];
 
 export class GameClient {
   private state: GameState = {
@@ -44,11 +40,7 @@ export class GameClient {
     error: null,
   };
   private listeners = new Set<() => void>();
-  private socket: WebSocket | null = null;
-  private attempts = 0;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private stopped = false;
+  private readonly connection: Connection;
 
   constructor(
     private readonly options: {
@@ -56,7 +48,24 @@ export class GameClient {
       storage: SessionStorage;
       createSocket: (url: string) => WebSocket;
     },
-  ) {}
+  ) {
+    this.connection = new Connection({
+      url: options.url,
+      createSocket: options.createSocket,
+      onStatus: (status) => this.update({ status }),
+      onOpen: () => {
+        const { session } = this.state;
+        if (session) {
+          this.connection.send({
+            type: "resume",
+            code: session.code,
+            sessionToken: session.sessionToken,
+          });
+        }
+      },
+      onMessage: (message) => void this.receive(message),
+    });
+  }
 
   getState = (): GameState => this.state;
 
@@ -66,84 +75,24 @@ export class GameClient {
   };
 
   async start(): Promise<void> {
-    this.stopped = false;
     this.update({ session: await this.options.storage.load() });
-    this.connect();
+    this.connection.start();
   }
 
   stop(): void {
-    this.stopped = true;
-    this.clearTimers();
-    this.socket?.close();
-    this.socket = null;
+    this.connection.stop();
   }
 
   // Sends now or not at all: the UI disables actions while not connected.
-  send(message: ClientMessage): boolean {
-    if (this.socket?.readyState !== OPEN) return false;
+  // Arrow properties, so screens can depend on them without re-running effects.
+  send = (message: ClientMessage): boolean => {
     if (message.type !== "ping") this.update({ error: null });
-    this.socket.send(JSON.stringify(message));
-    return true;
-  }
+    return this.connection.send(message);
+  };
 
-  clearError(): void {
+  clearError = (): void => {
     this.update({ error: null });
-  }
-
-  private connect(): void {
-    if (this.stopped) return;
-    // Never two live sockets: a replaced one's events are ignored below.
-    const previous = this.socket;
-    this.socket = null;
-    previous?.close();
-    this.update({ status: "connecting" });
-    const socket = this.options.createSocket(this.options.url);
-    this.socket = socket;
-
-    socket.onopen = () => {
-      if (this.socket !== socket) return;
-      this.attempts = 0;
-      this.update({ status: "open" });
-      const { session } = this.state;
-      if (session) {
-        this.send({
-          type: "resume",
-          code: session.code,
-          sessionToken: session.sessionToken,
-        });
-      }
-      this.heartbeatTimer = setInterval(
-        () => this.send({ type: "ping" }),
-        HEARTBEAT_MS,
-      );
-    };
-
-    socket.onmessage = (event) => {
-      if (this.socket !== socket || typeof event.data !== "string") return;
-      let raw: unknown;
-      try {
-        raw = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-      const parsed = ServerMessage.safeParse(raw);
-      if (parsed.success) void this.receive(parsed.data);
-    };
-
-    socket.onclose = () => {
-      if (this.socket !== socket) return;
-      this.socket = null;
-      this.clearTimers();
-      this.update({ status: "closed" });
-      if (this.stopped) return;
-      const delay =
-        RECONNECT_DELAYS_MS[
-          Math.min(this.attempts, RECONNECT_DELAYS_MS.length - 1)
-        ];
-      this.attempts++;
-      this.reconnectTimer = setTimeout(() => this.connect(), delay);
-    };
-  }
+  };
 
   private async receive(message: ServerMessage): Promise<void> {
     switch (message.type) {
@@ -176,13 +125,6 @@ export class GameClient {
   private async forget(): Promise<void> {
     this.update({ session: null, room: null });
     await this.options.storage.clear();
-  }
-
-  private clearTimers(): void {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
-    this.reconnectTimer = null;
-    this.heartbeatTimer = null;
   }
 
   private update(patch: Partial<GameState>): void {

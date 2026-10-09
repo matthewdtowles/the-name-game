@@ -118,9 +118,9 @@ describe("messages", () => {
     await send("c-host", { type: "submitName", name: "Cher" });
     await send("c-alex", { type: "submitName", name: "Prince" });
     await send("c-host", { type: "startReveal" });
-    const names = last("c-host", "room").room.names ?? [];
+    const names = last("c-host", "room").room.reveal?.names ?? [];
     assert.deepEqual([...names].sort(), ["Cher", "Prince"]);
-    assert.equal(last("c-alex", "room").room.names, null);
+    assert.equal(last("c-alex", "room").room.reveal?.names, null);
   });
 
   it("returns rule errors to the sender only", async () => {
@@ -186,5 +186,68 @@ describe("connections", () => {
     assert.equal(last("c1", "error").reason, "session_expired");
     await send("c2", { type: "resume", code: "ZZZZ", sessionToken: "nope" });
     assert.equal(last("c2", "error").reason, "session_expired");
+  });
+});
+
+describe("TVs", () => {
+  async function tvWithPlayers() {
+    await send("tv", { type: "display" });
+    const { code } = last("tv", "watching");
+    await send("c-host", { type: "join", code, displayName: "Sam" });
+    await send("c-alex", { type: "join", code, displayName: "Alex" });
+    return code;
+  }
+
+  it("opens a room for players to join, with the first one hosting", async () => {
+    await tvWithPlayers();
+    const { screen } = last("tv", "screen");
+    assert.deepEqual(
+      screen.players.map((p) => p.displayName),
+      ["Sam", "Alex"],
+    );
+    assert.equal(screen.hostId, last("c-host", "welcome").playerId);
+    assert.equal(last("c-host", "room").room.tv, true);
+  });
+
+  it("puts the reveal on the TV, not the host's phone", async () => {
+    await tvWithPlayers();
+    await send("c-host", { type: "submitName", name: "Cher" });
+    await send("c-alex", { type: "submitName", name: "Prince" });
+    await send("c-host", { type: "startReveal" });
+    assert.equal(last("c-host", "room").room.reveal?.names, null);
+    assert.equal(last("tv", "screen").screen.reveal?.slips.length, 1);
+    await send("c-host", { type: "revealTo", index: 1 });
+    assert.equal(last("tv", "screen").screen.reveal?.index, 1);
+  });
+
+  it("only watches", async () => {
+    await tvWithPlayers();
+    await send("tv", { type: "startReveal" });
+    assert.equal(last("tv", "error").reason, "invalid_message");
+  });
+
+  it("reattaches to its room after a reload", async () => {
+    const code = await tvWithPlayers();
+    await handleDisconnect(deps, "tv");
+    assert.equal(last("c-host", "room").room.tv, false);
+    await send("tv-2", { type: "display", code });
+    assert.equal(last("tv-2", "watching").code, code);
+    assert.equal(last("c-host", "room").room.tv, true);
+  });
+
+  it("reports an unknown room", async () => {
+    await send("tv", { type: "display", code: "ZZZZ" });
+    assert.equal(last("tv", "error").reason, "room_not_found");
+  });
+
+  it("keeps a room while a TV shows it, and deletes it once nobody's left", async () => {
+    await send("tv", { type: "display" });
+    const { code } = last("tv", "watching");
+    await send("c-host", { type: "join", code, displayName: "Sam" });
+    await send("c-host", { type: "leave" });
+    assert.notEqual(await deps.store.getRoom(code), null);
+    assert.equal(last("tv", "screen").screen.hostId, null);
+    await handleDisconnect(deps, "tv");
+    assert.equal(await deps.store.getRoom(code), null);
   });
 });

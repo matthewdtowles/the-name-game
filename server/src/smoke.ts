@@ -66,6 +66,12 @@ const roomWhere =
     m.type === "room" && test(m.room);
 
 async function main() {
+  await playOnPhones();
+  await playWithTv();
+}
+
+// The whole game on phones: the host reads the names.
+async function playOnPhones() {
   const host = new Player("host");
   const guest = new Player("guest");
   await Promise.all([host.opened(), guest.opened()]);
@@ -94,7 +100,7 @@ async function main() {
     roomWhere((r) => r.phase === "reveal"),
     "the reveal",
   );
-  assert.deepEqual([...(hostView.room.names ?? [])].sort(), [
+  assert.deepEqual([...(hostView.room.reveal?.names ?? [])].sort(), [
     "Cher",
     "Dolly Parton",
   ]);
@@ -102,7 +108,11 @@ async function main() {
     roomWhere((r) => r.phase === "reveal"),
     "the reveal",
   );
-  assert.equal(guestView.room.names, null, "only the host sees the names");
+  assert.equal(
+    guestView.room.reveal?.names,
+    null,
+    "only the host sees the names",
+  );
 
   host.send({ type: "finishReveal" });
   await guest.next(
@@ -116,7 +126,58 @@ async function main() {
   await host.next(isType("removed"), "removal");
   host.close();
   guest.close();
-  console.log(`Smoke test passed against ${url} (room ${code})`);
+  console.log(`Phones: passed against ${url} (room ${code})`);
+}
+
+// A TV opens the room and shows the reveal; the host's phone is the remote.
+async function playWithTv() {
+  const tv = new Player("tv");
+  const host = new Player("host");
+  const guest = new Player("guest");
+  await Promise.all([tv.opened(), host.opened(), guest.opened()]);
+
+  tv.send({ type: "display" });
+  const { code } = await tv.next(isType("watching"), "watching");
+  host.send({ type: "join", code, displayName: "Smoke Host" });
+  await host.next(isType("welcome"), "a welcome");
+  guest.send({ type: "join", code, displayName: "Smoke Guest" });
+  await guest.next(isType("welcome"), "a welcome");
+  host.send({ type: "submitName", name: "Cher" });
+  guest.send({ type: "submitName", name: "Prince" });
+  await host.next(
+    roomWhere((r) => r.players.every((p) => p.submitted)),
+    "everyone submitted",
+  );
+
+  host.send({ type: "startReveal" });
+  const hostView = await host.next(
+    roomWhere((r) => r.phase === "reveal"),
+    "the reveal",
+  );
+  assert.equal(
+    hostView.room.reveal?.names,
+    null,
+    "the TV shows the names, not the host",
+  );
+  host.send({ type: "revealAll", all: true });
+  const screen = await tv.next(
+    (m): m is Extract<ServerMessage, { type: "screen" }> =>
+      m.type === "screen" && (m.screen.reveal?.slips.length ?? 0) === 2,
+    "every slip on screen",
+  );
+  assert.deepEqual([...screen.screen.reveal!.slips].sort(), ["Cher", "Prince"]);
+
+  guest.send({ type: "leave" });
+  host.send({ type: "leave" });
+  await Promise.all([
+    guest.next(isType("removed"), "removal"),
+    host.next(isType("removed"), "removal"),
+  ]);
+  tv.close();
+  host.close();
+  guest.close();
+  console.log(`TV: passed against ${url} (room ${code})`);
+  console.log("Smoke test passed");
 }
 
 main().catch((error: unknown) => {

@@ -5,13 +5,15 @@ export interface RoomRecord {
   // Each player's live connection, for fan-out. Kept beside the room rather
   // than in it because sockets are the server's concern, not the game's.
   connections: Record<string, string>;
+  // Connections of TVs showing the room.
+  displays: string[];
   version: number;
 }
 
-// Which room and player a connection speaks for.
+// Which room and player a connection speaks for; a TV's has no player.
 export interface Binding {
   code: string;
-  playerId: string;
+  playerId: string | null;
 }
 
 export interface Store {

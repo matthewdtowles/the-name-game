@@ -4,7 +4,7 @@ import {
   BricolageGrotesque_800ExtraBold,
   useFonts,
 } from "@expo-google-fonts/bricolage-grotesque";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,9 +19,11 @@ export default function RootLayout() {
     BricolageGrotesque_800ExtraBold,
   });
 
+  const onTv = usePathname().startsWith("/tv");
+
   return (
     <SafeAreaProvider>
-      <GameProvider>
+      <GameProvider enabled={!onTv}>
         <StatusBar style="light" />
         {fontsLoaded ? (
           <Stack

@@ -5,6 +5,8 @@ import {
   ClientMessage,
   DISPLAY_NAME_MAX,
   MAX_REMINDERS,
+  MAX_REVEAL_SECONDS,
+  MIN_REVEAL_SECONDS,
   RoomCode,
   ServerMessage,
   type RoomView,
@@ -35,12 +37,19 @@ describe("ClientMessage", () => {
       { type: "join", code: "WXYZ", displayName: "Sam" },
       { type: "resume", code: "WXYZ", sessionToken: "token" },
       { type: "submitName", name: "Dolly Parton" },
-      { type: "updateSettings", settings: { reminders: 0 } },
+      {
+        type: "updateSettings",
+        settings: { reminders: 0, revealSeconds: null },
+      },
       { type: "kick", playerId: "p1" },
       { type: "startReveal" },
       { type: "finishReveal" },
       { type: "remind" },
       { type: "leave" },
+      { type: "revealTo", index: 2 },
+      { type: "revealAll", all: true },
+      { type: "display" },
+      { type: "display", code: "WXYZ" },
       { type: "ping" },
     ];
     for (const message of messages) {
@@ -80,7 +89,10 @@ describe("ClientMessage", () => {
 
   it("bounds reminders to whole numbers from 0 to the max", () => {
     for (const reminders of [-1, MAX_REMINDERS + 1, 1.5]) {
-      const message = { type: "updateSettings", settings: { reminders } };
+      const message = {
+        type: "updateSettings",
+        settings: { reminders, revealSeconds: null },
+      };
       assert.equal(
         ClientMessage.safeParse(message).success,
         false,
@@ -96,7 +108,7 @@ describe("ServerMessage", () => {
       code: "WXYZ",
       phase: "reveal",
       tier: "free",
-      settings: { reminders: 1 },
+      settings: { reminders: 1, revealSeconds: null },
       hostId: "p1",
       players: [
         { id: "p1", displayName: "Sam", connected: true, submitted: true },
@@ -104,13 +116,54 @@ describe("ServerMessage", () => {
       ],
       you: { playerId: "p1", submittedName: "Dolly Parton" },
       remindersLeft: 1,
-      names: ["Cher", "Dolly Parton"],
+      reveal: {
+        index: 0,
+        total: 2,
+        all: false,
+        names: ["Cher", "Dolly Parton"],
+      },
+      tv: false,
     };
     const message = { type: "room", room };
     assert.deepEqual(
       ServerMessage.parse(JSON.parse(JSON.stringify(message))),
       message,
     );
+  });
+
+  it("round-trips a TV screen", () => {
+    const message = {
+      type: "screen",
+      screen: {
+        code: "WXYZ",
+        phase: "reveal",
+        hostId: null,
+        players: [],
+        remindersLeft: 0,
+        reveal: { index: 1, total: 3, slips: ["Cher"] },
+      },
+    };
+    assert.deepEqual(
+      ServerMessage.parse(JSON.parse(JSON.stringify(message))),
+      message,
+    );
+  });
+
+  it("bounds the seconds per name", () => {
+    for (const revealSeconds of [
+      MIN_REVEAL_SECONDS - 1,
+      MAX_REVEAL_SECONDS + 1,
+    ]) {
+      const message = {
+        type: "updateSettings",
+        settings: { reminders: 1, revealSeconds },
+      };
+      assert.equal(
+        ClientMessage.safeParse(message).success,
+        false,
+        String(revealSeconds),
+      );
+    }
   });
 
   it("rejects an unknown error reason", () => {
