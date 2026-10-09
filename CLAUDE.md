@@ -14,7 +14,7 @@ step between workspaces).
 | `shared/` (`@tng/shared`) | The wire protocol (`protocol.ts`, zod schemas) and the pure rules engine (`game.ts`). Imported by both the app and the server. |
 | `server/` (`@tng/server`) | `handler.ts` turns socket events into rule actions behind `Store` and `Send` interfaces. `dev.ts` runs it over `ws` with `MemoryStore`; `lambda.ts` runs it on API Gateway with `DynamoStore`. `smoke.ts` plays a real game against any URL. |
 | `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/client.ts` owns the socket: it resumes the stored session on every (re)connect, reconnects with backoff, and sends a heartbeat. Screens read it through `useGame()`. |
-| `infra/` (`@tng/infra`) | AWS CDK: `TheNameGameStagingBackend` and `TheNameGameProdBackend` (API Gateway WebSocket, one Lambda, DynamoDB with TTL). `infra/setup/` holds the one-time account setup (see its README). |
+| `infra/` (`@tng/infra`) | AWS CDK, per stage: `TheNameGame{Staging,Prod}Backend` (API Gateway WebSocket on `play.` its domain, one Lambda, DynamoDB with TTL) and `TheNameGame{Staging,Prod}Web` (the web export in S3 behind CloudFront). Prod is `whosename.app`, staging `staging.whosename.app`. `infra/setup/` holds the one-time account setup (see its README). |
 
 ## Commands
 
@@ -35,9 +35,10 @@ npm run smoke -w @tng/server -- wss://...   # play a game against a server
 cd infra && AWS_PROFILE=the-name-game npx cdk deploy TheNameGameStagingBackend
 ```
 
-Merging to `main` deploys both backends from CI: staging, a smoke test against
-it, then prod and a smoke test against that. Deploy by hand only to try
-something on staging.
+Merging to `main` deploys from CI: staging (stacks, web publish, smoke test),
+then prod the same way. Deploy by hand only to try something on staging; after
+`cdk deploy ... --outputs-file ../staging.json`, publish the web app with
+`AWS_PROFILE=the-name-game ./.github/scripts/publish-web.sh staging.json Staging`.
 
 ## How the game is built
 

@@ -1,6 +1,8 @@
 {
   "app": "npx tsx bin/app.ts",
   "context": {
-    "@aws-cdk/core:bootstrapQualifier": "tng"
+    "@aws-cdk/core:bootstrapQualifier": "tng",
+    "domain": "whosename.app",
+    "hostedZoneId": "Z08181022VN8QHZHNBZQ7"
   }
 }

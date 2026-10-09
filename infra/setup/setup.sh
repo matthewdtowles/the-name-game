@@ -3,6 +3,8 @@
 # app's deploys away from everything else in the account:
 #
 #   exec-policy     tng-cfn-exec: what CloudFormation may do for this app's stacks
+#   service-roles   AWS-managed roles the stacks need but may not create
+#                   themselves (API Gateway custom domains)
 #   bootstrap       CDK bootstrap with qualifier "tng" (CDKToolkit-tng) using that policy
 #   permission-set  TheNameGameDeployer in IAM Identity Center + the local
 #                   "the-name-game" profile; it can only assume the tng deploy and
@@ -46,6 +48,15 @@ exec_policy() {
       --description "What CloudFormation may do when deploying The Name Game" \
       --policy-document "$(render cfn-exec-policy.json)" --tags "$PROJECT_TAG" >/dev/null
     echo "Created $arn"
+  fi
+}
+
+service_roles() {
+  if aws iam get-role --role-name AWSServiceRoleForAPIGateway >/dev/null 2>&1; then
+    echo "AWSServiceRoleForAPIGateway exists"
+  else
+    aws iam create-service-linked-role --aws-service-name ops.apigateway.amazonaws.com >/dev/null
+    echo "Created AWSServiceRoleForAPIGateway"
   fi
 }
 
@@ -145,10 +156,11 @@ budget() {
 
 case "${1:-}" in
   exec-policy) exec_policy ;;
+  service-roles) service_roles ;;
   bootstrap) bootstrap ;;
   permission-set) permission_set ;;
   github-role) github_role ;;
   budget) budget ;;
-  all) exec_policy; bootstrap; permission_set; github_role; budget ;;
-  *) echo "Usage: $0 exec-policy|bootstrap|permission-set|github-role|budget|all" >&2; exit 64 ;;
+  all) exec_policy; service_roles; bootstrap; permission_set; github_role; budget ;;
+  *) echo "Usage: $0 exec-policy|service-roles|bootstrap|permission-set|github-role|budget|all" >&2; exit 64 ;;
 esac
