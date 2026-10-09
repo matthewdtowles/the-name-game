@@ -2,6 +2,7 @@ import type { RoomView } from "@tng/shared";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
 import Home from "../app/index";
+import Privacy from "../app/privacy";
 import { Lobby } from "../components/Lobby";
 import { Play } from "../components/Play";
 import { Reveal } from "../components/Reveal";
@@ -17,7 +18,16 @@ const mockGame: GameState & { send: jest.Mock; clearError: jest.Mock } = {
 };
 
 jest.mock("../lib/game/GameContext", () => ({ useGame: () => mockGame }));
-jest.mock("expo-router", () => ({ Redirect: () => null }));
+// Link renders its label as Text, like the real one.
+jest.mock("expo-router", () => ({
+  Redirect: () => null,
+  Link: ({ children }: { children: string }) =>
+    require("react").createElement(
+      require("react-native").Text,
+      null,
+      children,
+    ),
+}));
 
 function room(overrides: Partial<RoomView> = {}): RoomView {
   return {
@@ -77,6 +87,21 @@ describe("Home", () => {
     await render(<Home />);
     await fireEvent.changeText(screen.getByLabelText("Your name"), "Sam");
     expect(screen.getByRole("button", { name: "Host a game" })).toBeDisabled();
+  });
+});
+
+describe("Privacy", () => {
+  it("links from home", async () => {
+    await render(<Home />);
+    expect(screen.getByText("Privacy")).toBeTruthy();
+  });
+
+  it("states the retention promise", async () => {
+    await render(<Privacy />);
+    expect(screen.getByText(/deleted automatically a day after/)).toBeTruthy();
+    expect(
+      screen.getByText("No accounts, ads, analytics, or tracking cookies."),
+    ).toBeTruthy();
   });
 });
 

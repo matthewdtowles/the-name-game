@@ -18,4 +18,10 @@ module.exports = [
     files: ["server/**", "infra/**"],
     rules: { "expo/no-dynamic-env-var": "off" },
   },
+  {
+    // `jest.mock` factories are hoisted above the imports, so they can only
+    // reach a module through `require()`.
+    files: ["app/__tests__/**"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ];
