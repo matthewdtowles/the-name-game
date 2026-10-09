@@ -12,14 +12,14 @@ export async function shareInvite(
   code: string,
 ): Promise<"shared" | "copied" | "failed"> {
   const url = joinUrl(code);
-  const message = `Join my game of The Name Game: ${url}`;
+  const message = `Come play Whose Name? with me: ${url}`;
   try {
     if (Platform.OS !== "web") {
       await Share.share({ message });
       return "shared";
     }
     if (typeof navigator.share === "function") {
-      await navigator.share({ title: "The Name Game", text: message, url });
+      await navigator.share({ title: "Whose Name?", text: message, url });
       return "shared";
     }
     await navigator.clipboard.writeText(url);
