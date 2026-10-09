@@ -76,13 +76,17 @@ export function Lobby({ room }: { room: RoomView }) {
         </View>
       ) : null}
       <View style={styles.section}>
-        <Text style={styles.heading}>Players</Text>
+        <Text style={styles.heading}>Players, in seat order</Text>
         <PlayerList
           room={room}
-          showSubmitted
           onRemove={
             isHost
               ? (playerId) => game.send({ type: "kick", playerId })
+              : undefined
+          }
+          onMove={
+            isHost
+              ? (playerId, to) => game.send({ type: "moveSeat", playerId, to })
               : undefined
           }
         />

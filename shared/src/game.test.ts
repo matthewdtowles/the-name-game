@@ -504,3 +504,225 @@ describe("stepping through the reveal", () => {
     assert.equal(room.reveal?.all, false);
   });
 });
+
+describe("the guessing game", () => {
+  // Sam (p0, host), Alex (p1), Jo (p2), Kim (p3), with names in the hat, past
+  // the reveal and playing.
+  function playing(count = 4, reminders = 1): Room {
+    const names = ["Cher", "Prince", "Madonna", "Bono"].slice(0, count);
+    let room = submitted(...names);
+    room = must(room, {
+      type: "updateSettings",
+      playerId: "p0",
+      settings: { reminders, revealSeconds: null },
+    });
+    room = must(room, { type: "startReveal", playerId: "p0" });
+    return must(room, { type: "finishReveal", playerId: "p0" });
+  }
+  const guess = (room: Room, by: string, target: string) =>
+    must(room, { type: "guess", playerId: by, targetId: target });
+  const answer = (room: Room, by: string, correct: boolean) =>
+    must(room, { type: "answerGuess", playerId: by, correct });
+  const teamOf = (room: Room, id: string) => room.game?.teams[id];
+
+  it("starts everyone with a name as a team of one, first seat first", () => {
+    let room = lobby("Sam", "Alex", "Jo");
+    room = must(room, { type: "submitName", playerId: "p0", name: "Cher" });
+    room = must(room, { type: "submitName", playerId: "p2", name: "Prince" });
+    room = must(room, { type: "startReveal", playerId: "p0" });
+    assert.deepEqual(room.game?.teams, { p0: "p0", p2: "p2" });
+    assert.equal(room.game?.turn, "p0");
+    // Alex put no name in, so watches.
+    assert.equal(viewFor(room, "p1").players[1]!.team, null);
+  });
+
+  it("lets only the team whose turn it is guess another team's leader", () => {
+    const room = playing();
+    assert.equal(
+      reason(room, { type: "guess", playerId: "p1", targetId: "p2" }),
+      "not_your_turn",
+    );
+    assert.equal(
+      reason(room, { type: "guess", playerId: "p0", targetId: "p0" }),
+      "invalid_target",
+    );
+    const pending = guess(room, "p0", "p2");
+    assert.deepEqual(pending.game?.pending, {
+      by: "p0",
+      team: "p0",
+      target: "p2",
+    });
+    assert.equal(
+      reason(pending, { type: "guess", playerId: "p0", targetId: "p1" }),
+      "guess_pending",
+    );
+  });
+
+  it("takes the answer from the guessed player or the host", () => {
+    const room = guess(playing(), "p0", "p2");
+    assert.equal(
+      reason(room, { type: "answerGuess", playerId: "p1", correct: true }),
+      "not_your_turn",
+    );
+    assert.equal(
+      reason(room, { type: "answerGuess", playerId: "p2", correct: true }),
+      null,
+    );
+    assert.equal(
+      reason(room, { type: "answerGuess", playerId: "p0", correct: true }),
+      null,
+    );
+  });
+
+  it("brings a correctly guessed player onto the team, which goes again", () => {
+    const room = answer(guess(playing(), "p0", "p2"), "p2", true);
+    assert.equal(teamOf(room, "p2"), "p0");
+    assert.equal(room.game?.turn, "p0");
+    // Their name was said out loud, so it's public now.
+    assert.equal(viewFor(room, "p3").players[2]!.name, "Madonna");
+    assert.equal(viewFor(room, "p3").players[1]!.name, null);
+    // Any member of the team may guess on its turn.
+    assert.equal(guess(room, "p2", "p1").game?.pending?.team, "p0");
+  });
+
+  it("passes the turn to the next team in seat order on a wrong guess", () => {
+    let room = answer(guess(playing(), "p0", "p2"), "p2", false);
+    assert.equal(room.game?.turn, "p1");
+    room = answer(guess(room, "p1", "p3"), "p3", false);
+    room = answer(guess(room, "p2", "p0"), "p0", false);
+    room = answer(guess(room, "p3", "p0"), "p0", false);
+    assert.equal(room.game?.turn, "p0", "wraps around");
+  });
+
+  it("brings a whole team over by guessing its leader, keeping the guesser's seat", () => {
+    // Jo's team takes Kim; then Sam takes Jo and with her, Kim.
+    let room = answer(guess(playing(), "p0", "p1"), "p1", false);
+    room = answer(guess(room, "p1", "p2"), "p2", false);
+    room = answer(guess(room, "p2", "p3"), "p3", true);
+    room = answer(guess(room, "p3", "p1"), "p1", false);
+    assert.equal(room.game?.turn, "p0");
+    room = answer(guess(room, "p0", "p2"), "p2", true);
+    assert.equal(teamOf(room, "p2"), "p0");
+    assert.equal(teamOf(room, "p3"), "p0");
+    // A wrong guess from Sam's team now skips Jo and Kim, who are on it.
+    room = answer(guess(room, "p0", "p1"), "p1", false);
+    assert.equal(room.game?.turn, "p1");
+  });
+
+  it("ends when one team holds everyone, and then shows who wrote what", () => {
+    let room = answer(guess(playing(3), "p0", "p1"), "p1", true);
+    assert.equal(room.phase, "play");
+    room = answer(guess(room, "p0", "p2"), "p2", true);
+    assert.equal(room.phase, "over");
+    assert.deepEqual(room.game?.winners, ["p0"]);
+    assert.deepEqual(
+      viewFor(room, "p1").players.map((p) => p.name),
+      ["Cher", "Prince", "Madonna"],
+    );
+  });
+
+  it("lets the guessing team or the host take back a guess", () => {
+    const room = guess(playing(), "p0", "p2");
+    assert.equal(
+      reason(room, { type: "cancelGuess", playerId: "p1" }),
+      "not_your_turn",
+    );
+    const cancelled = must(room, { type: "cancelGuess", playerId: "p0" });
+    assert.equal(cancelled.game?.pending, null);
+  });
+
+  it("lets the host end the round once no reminders are left", () => {
+    let room = answer(guess(playing(4, 0), "p0", "p1"), "p1", true);
+    room = answer(guess(room, "p0", "p2"), "p2", false);
+    assert.equal(
+      reason(room, { type: "endRound", playerId: "p1" }),
+      "not_host",
+    );
+    room = must(room, { type: "endRound", playerId: "p0" });
+    assert.equal(room.phase, "over");
+    assert.deepEqual(room.game?.winners, ["p0"]);
+  });
+
+  it("shares the win between the largest teams on a tie", () => {
+    let room = answer(guess(playing(4, 0), "p0", "p1"), "p1", true);
+    room = answer(guess(room, "p0", "p2"), "p2", false);
+    room = answer(guess(room, "p2", "p3"), "p3", true);
+    room = must(room, { type: "endRound", playerId: "p0" });
+    assert.deepEqual(room.game?.winners, ["p0", "p2"]);
+  });
+
+  it("won't end the round while reminders are left", () => {
+    assert.equal(
+      reason(playing(4, 1), { type: "endRound", playerId: "p0" }),
+      "reminders_left",
+    );
+  });
+
+  it("lets the host undo answers, even after the game ended", () => {
+    const before = guess(playing(2), "p0", "p1");
+    const won = answer(before, "p1", true);
+    assert.equal(won.phase, "over");
+    const undone = must(won, { type: "undo", playerId: "p0" });
+    assert.equal(undone.phase, "play");
+    assert.deepEqual(undone.game, before.game);
+    assert.equal(
+      reason(undone, { type: "undo", playerId: "p0" }),
+      "nothing_to_undo",
+    );
+  });
+
+  it("starts a new game with the same players and seats", () => {
+    const won = answer(guess(playing(2), "p0", "p1"), "p1", true);
+    const again = must(won, { type: "playAgain", playerId: "p0" });
+    assert.equal(again.phase, "lobby");
+    assert.equal(again.game, null);
+    assert.deepEqual(
+      again.players.map((p) => [p.id, p.name]),
+      [
+        ["p0", null],
+        ["p1", null],
+      ],
+    );
+  });
+
+  it("drops a team whose leader leaves, passing the turn on", () => {
+    let room = answer(guess(playing(3), "p0", "p1"), "p1", false);
+    assert.equal(room.game?.turn, "p1");
+    room = must(room, { type: "leave", playerId: "p1" });
+    assert.equal(room.game?.turn, "p2");
+    room = must(room, { type: "leave", playerId: "p2" });
+    assert.equal(room.phase, "over");
+    assert.deepEqual(room.game?.winners, ["p0"]);
+  });
+
+  it("keeps the game through a reminder", () => {
+    let room = answer(guess(playing(), "p0", "p1"), "p1", true);
+    room = must(room, { type: "remind", playerId: "p0" });
+    room = must(room, { type: "finishReveal", playerId: "p0" });
+    assert.equal(teamOf(room, "p1"), "p0");
+  });
+});
+
+describe("seats", () => {
+  it("lets the host move players around the lobby", () => {
+    const room = must(lobby("Sam", "Alex", "Jo"), {
+      type: "moveSeat",
+      playerId: "p0",
+      targetId: "p2",
+      to: 0,
+    });
+    assert.deepEqual(
+      room.players.map((p) => p.displayName),
+      ["Jo", "Sam", "Alex"],
+    );
+    assert.equal(
+      reason(lobby("Sam", "Alex"), {
+        type: "moveSeat",
+        playerId: "p1",
+        targetId: "p0",
+        to: 1,
+      }),
+      "not_host",
+    );
+  });
+});

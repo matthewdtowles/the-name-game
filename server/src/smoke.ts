@@ -79,7 +79,7 @@ async function playOnPhones() {
   host.send({ type: "create", displayName: "Smoke Host" });
   const { code } = await host.next(isType("welcome"), "a welcome");
   guest.send({ type: "join", code, displayName: "Smoke Guest" });
-  await guest.next(isType("welcome"), "a welcome");
+  const guestWelcome = await guest.next(isType("welcome"), "a welcome");
 
   host.send({ type: "submitName", name: "Dolly Parton" });
   await host.next(
@@ -119,6 +119,24 @@ async function playOnPhones() {
     roomWhere((r) => r.phase === "play"),
     "play",
   );
+
+  // The host's team guesses the guest, who confirms; that's everyone on one team.
+  const { playerId: guestId } = guestWelcome;
+  host.send({ type: "guess", playerId: guestId });
+  await guest.next(
+    roomWhere((r) => r.game?.pending?.target === guestId),
+    "the guess",
+  );
+  guest.send({ type: "answerGuess", correct: true });
+  const over = await host.next(
+    roomWhere((r) => r.phase === "over"),
+    "the win",
+  );
+  assert.equal(over.room.game?.winners?.length, 1);
+  assert.deepEqual(over.room.players.map((p) => p.name).sort(), [
+    "Cher",
+    "Dolly Parton",
+  ]);
 
   guest.send({ type: "leave" });
   await guest.next(isType("removed"), "removal");

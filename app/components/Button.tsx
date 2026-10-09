@@ -4,16 +4,19 @@ import { colors, fonts, space } from "../lib/theme";
 
 type Variant = "primary" | "secondary" | "quiet";
 
+// `onPaper` draws secondary and quiet buttons in ink, for use on a slip.
 export function Button({
   label,
   onPress,
   variant = "primary",
   disabled = false,
+  onPaper = false,
 }: {
   label: string;
   onPress: () => void;
   variant?: Variant;
   disabled?: boolean;
+  onPaper?: boolean;
 }) {
   return (
     <Pressable
@@ -24,6 +27,7 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         styles[variant],
+        onPaper && variant === "secondary" && styles.secondaryOnPaper,
         pressed && styles.pressed,
         disabled && styles.disabled,
       ]}
@@ -31,7 +35,11 @@ export function Button({
       <Text
         style={[
           styles.label,
-          variant === "primary" ? styles.onMarker : styles.onTable,
+          variant === "primary"
+            ? styles.onMarker
+            : onPaper
+              ? styles.onPaper
+              : styles.onTable,
         ]}
       >
         {label}
@@ -56,4 +64,6 @@ const styles = StyleSheet.create({
   label: { fontFamily: fonts.semibold, fontSize: 18, textAlign: "center" },
   onMarker: { color: "#FFFFFF" },
   onTable: { color: colors.paper },
+  onPaper: { color: colors.ink },
+  secondaryOnPaper: { borderColor: colors.ink },
 });

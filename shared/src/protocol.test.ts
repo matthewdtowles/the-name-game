@@ -50,6 +50,13 @@ describe("ClientMessage", () => {
       { type: "revealAll", all: true },
       { type: "display" },
       { type: "display", code: "WXYZ" },
+      { type: "moveSeat", playerId: "p2", to: 0 },
+      { type: "guess", playerId: "p2" },
+      { type: "answerGuess", correct: true },
+      { type: "cancelGuess" },
+      { type: "endRound" },
+      { type: "undo" },
+      { type: "playAgain" },
       { type: "ping" },
     ];
     for (const message of messages) {
@@ -111,8 +118,22 @@ describe("ServerMessage", () => {
       settings: { reminders: 1, revealSeconds: null },
       hostId: "p1",
       players: [
-        { id: "p1", displayName: "Sam", connected: true, submitted: true },
-        { id: "p2", displayName: "Alex", connected: false, submitted: true },
+        {
+          id: "p1",
+          displayName: "Sam",
+          connected: true,
+          submitted: true,
+          team: "p1",
+          name: null,
+        },
+        {
+          id: "p2",
+          displayName: "Alex",
+          connected: false,
+          submitted: true,
+          team: "p1",
+          name: "Cher",
+        },
       ],
       you: { playerId: "p1", submittedName: "Dolly Parton" },
       remindersLeft: 1,
@@ -123,6 +144,12 @@ describe("ServerMessage", () => {
         names: ["Cher", "Dolly Parton"],
       },
       tv: false,
+      game: {
+        turn: "p1",
+        pending: { by: "p1", team: "p1", target: "p2" },
+        winners: null,
+        canUndo: true,
+      },
     };
     const message = { type: "room", room };
     assert.deepEqual(
@@ -141,6 +168,7 @@ describe("ServerMessage", () => {
         players: [],
         remindersLeft: 0,
         reveal: { index: 1, total: 3, slips: ["Cher"] },
+        game: null,
       },
     };
     assert.deepEqual(

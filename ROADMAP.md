@@ -22,6 +22,11 @@ remain, the host can **End round**: the largest team wins, and tied teams share 
 
 A merged team keeps the guessing leader's seat in the turn order.
 
+In the app, the guessed player confirms each guess on their phone (the host can
+answer for them), and the host can undo a mistaken answer. Players who didn't
+put a name in only watch. If a team's leader leaves mid-game, that team is out,
+so the game can still finish.
+
 The paper version's flaw is that the reader recognizes handwriting. The app fixes that:
 it collects the names privately and reveals them shuffled, with no link to who wrote
 each one.

@@ -1,6 +1,7 @@
 import {
   DEFAULT_REMINDERS,
   type ErrorReason,
+  type GameView,
   type Phase,
   type RoomView,
   type ScreenView,
@@ -33,6 +34,24 @@ export interface Reveal {
   all: boolean;
 }
 
+// The guessing game. Everyone with a name in the hat starts as a team of one;
+// a team is known by its leader, the one member whose name is still unguessed.
+export interface Game {
+  // Each playing player's team, by leader id.
+  teams: Record<string, string>;
+  // Players whose names have been guessed out loud.
+  guessed: string[];
+  // The leader of the team whose turn it is.
+  turn: string;
+  // A guess said out loud, waiting for the guessed player to answer.
+  pending: { by: string; team: string; target: string } | null;
+  // Leaders of the winning teams once it's over (more than one on a tie).
+  winners: string[] | null;
+}
+
+// Undo goes back this many answers.
+const HISTORY_LIMIT = 20;
+
 export interface Room {
   code: string;
   tier: Tier;
@@ -47,6 +66,10 @@ export interface Room {
   remindersLeft: number;
   // The current or last reveal; null until the first one.
   reveal: Reveal | null;
+  // From the first reveal until the next game.
+  game: Game | null;
+  // Earlier game states, most recent last, for the host's undo.
+  history: Game[];
 }
 
 // Player actions carry the acting player's id, resolved by the server from the
@@ -70,7 +93,14 @@ export type Action =
   | { type: "revealTo"; playerId: string; index: number }
   | { type: "revealAll"; playerId: string; all: boolean }
   | { type: "finishReveal"; playerId: string }
-  | { type: "remind"; playerId: string };
+  | { type: "remind"; playerId: string }
+  | { type: "moveSeat"; playerId: string; targetId: string; to: number }
+  | { type: "guess"; playerId: string; targetId: string }
+  | { type: "answerGuess"; playerId: string; correct: boolean }
+  | { type: "cancelGuess"; playerId: string }
+  | { type: "endRound"; playerId: string }
+  | { type: "undo"; playerId: string }
+  | { type: "playAgain"; playerId: string };
 
 export type Result =
   { ok: true; room: Room } | { ok: false; reason: ErrorReason };
@@ -99,6 +129,8 @@ export function createRoom(input: {
     displays: 0,
     remindersLeft: DEFAULT_SETTINGS.reminders,
     reveal: null,
+    game: null,
+    history: [],
   };
 }
 
@@ -173,7 +205,13 @@ export function apply(room: Room, action: Action, random: Random): Result {
         p.name === null ? [] : [p.name],
       );
       if (names.length < 2) return fail("not_enough_names");
-      return ok({ ...room, phase: "reveal", reveal: fresh(names, random) });
+      return ok({
+        ...room,
+        phase: "reveal",
+        reveal: fresh(names, random),
+        game: newGame(room),
+        history: [],
+      });
     }
 
     case "revealTo":
@@ -205,6 +243,130 @@ export function apply(room: Room, action: Action, random: Random): Result {
         phase: "reveal",
         remindersLeft: room.remindersLeft - 1,
         reveal: fresh(room.reveal?.order ?? [], random),
+      });
+
+    case "moveSeat": {
+      if (!isHost) return fail("not_host");
+      if (room.phase !== "lobby") return fail("wrong_phase");
+      const mover = room.players.find((p) => p.id === action.targetId);
+      if (!mover) return fail("not_in_room");
+      if (action.to >= room.players.length) return fail("invalid_message");
+      const players = room.players.filter((p) => p.id !== mover.id);
+      players.splice(action.to, 0, mover);
+      return ok({ ...room, players });
+    }
+
+    case "guess": {
+      const game = room.game;
+      if (room.phase !== "play" || !game) return fail("wrong_phase");
+      if (game.pending) return fail("guess_pending");
+      if (game.teams[actor.id] !== game.turn) return fail("not_your_turn");
+      if (
+        action.targetId === game.turn ||
+        !activeLeaders(room, game).includes(action.targetId)
+      ) {
+        return fail("invalid_target");
+      }
+      return ok({
+        ...room,
+        game: {
+          ...game,
+          pending: { by: actor.id, team: game.turn, target: action.targetId },
+        },
+      });
+    }
+
+    case "answerGuess": {
+      const game = room.game;
+      if (room.phase !== "play" || !game) return fail("wrong_phase");
+      const pending = game.pending;
+      if (!pending) return fail("no_guess_pending");
+      if (actor.id !== pending.target && !isHost) return fail("not_your_turn");
+      const history = remember(room, game);
+      if (!action.correct) {
+        return ok({
+          ...room,
+          history,
+          game: {
+            ...game,
+            pending: null,
+            turn: nextTurn(room, game, pending.team),
+          },
+        });
+      }
+      // Right: the guessed player's whole team joins the guessers, who go again.
+      const teams = Object.fromEntries(
+        Object.entries(game.teams).map(([id, leader]) => [
+          id,
+          leader === pending.target ? pending.team : leader,
+        ]),
+      );
+      const next: Game = {
+        ...game,
+        teams,
+        guessed: [...game.guessed, pending.target],
+        pending: null,
+      };
+      return ok(settle({ ...room, history, game: next }));
+    }
+
+    case "cancelGuess": {
+      const game = room.game;
+      if (!game?.pending) return fail("no_guess_pending");
+      if (game.teams[actor.id] !== game.pending.team && !isHost) {
+        return fail("not_your_turn");
+      }
+      return ok({ ...room, game: { ...game, pending: null } });
+    }
+
+    case "endRound": {
+      if (!isHost) return fail("not_host");
+      const game = room.game;
+      if (room.phase !== "play" || !game) return fail("wrong_phase");
+      if (room.remindersLeft > 0) return fail("reminders_left");
+      // The largest team wins; tied teams share the win.
+      const leaders = activeLeaders(room, game);
+      const size = (leader: string) =>
+        room.players.filter((p) => game.teams[p.id] === leader).length;
+      const most = Math.max(...leaders.map(size));
+      return ok({
+        ...room,
+        phase: "over",
+        history: remember(room, game),
+        game: {
+          ...game,
+          pending: null,
+          winners: leaders.filter((leader) => size(leader) === most),
+        },
+      });
+    }
+
+    case "undo": {
+      if (!isHost) return fail("not_host");
+      if ((room.phase !== "play" && room.phase !== "over") || !room.game) {
+        return fail("wrong_phase");
+      }
+      const previous = room.history.at(-1);
+      if (!previous) return fail("nothing_to_undo");
+      return ok({
+        ...room,
+        phase: "play",
+        game: previous,
+        history: room.history.slice(0, -1),
+      });
+    }
+
+    case "playAgain":
+      if (!isHost) return fail("not_host");
+      if (room.phase !== "over") return fail("wrong_phase");
+      return ok({
+        ...room,
+        phase: "lobby",
+        players: room.players.map((p) => ({ ...p, name: null })),
+        remindersLeft: room.settings.reminders,
+        reveal: null,
+        game: null,
+        history: [],
       });
   }
 }
@@ -239,6 +401,7 @@ export function viewFor(room: Room, playerId: string): RoomView {
         }
       : null,
     tv: room.displays > 0,
+    game: gameView(room),
   };
 }
 
@@ -260,6 +423,7 @@ export function screenFor(room: Room): ScreenView {
             : [revealing.order[revealing.index]!],
         }
       : null,
+    game: gameView(room),
   };
 }
 
@@ -273,13 +437,79 @@ export function normalizeName(name: string): string {
     .trim();
 }
 
+// A player's name is public once it's been guessed out loud, and everyone's is
+// once the game is over.
 function playerViews(room: Room) {
+  const game = room.game;
   return room.players.map((p) => ({
     id: p.id,
     displayName: p.displayName,
     connected: p.connected,
     submitted: p.name !== null,
+    team: game?.teams[p.id] ?? null,
+    name: room.phase === "over" || game?.guessed.includes(p.id) ? p.name : null,
   }));
+}
+
+function gameView(room: Room): GameView | null {
+  const game = room.game;
+  if (!game) return null;
+  return {
+    turn: game.turn,
+    pending: game.pending,
+    winners: game.winners,
+    canUndo: room.history.length > 0,
+  };
+}
+
+// Everyone with a name in the hat plays, starting as a team of one; the first
+// of them in seat order goes first.
+function newGame(room: Room): Game {
+  const playing = room.players.filter((p) => p.name !== null);
+  return {
+    teams: Object.fromEntries(playing.map((p) => [p.id, p.id])),
+    guessed: [],
+    turn: playing[0]!.id,
+    pending: null,
+    winners: null,
+  };
+}
+
+// Leaders of the teams still in the game, in seat order. A team whose leader
+// left has no one left to guess, so it's out.
+function activeLeaders(room: Room, game: Game): string[] {
+  return room.players
+    .map((p) => p.id)
+    .filter((id) => game.teams[id] === id && !game.guessed.includes(id));
+}
+
+// The next team after `from` in seat order, wrapping around.
+function nextTurn(room: Room, game: Game, from: string): string {
+  const seats = room.players.map((p) => p.id);
+  const active = new Set(activeLeaders(room, game));
+  const start = seats.indexOf(from);
+  for (let step = 1; step <= seats.length; step++) {
+    const id = seats[(start + step) % seats.length]!;
+    if (active.has(id) && id !== from) return id;
+  }
+  return from;
+}
+
+// The game is over once a single team is left.
+function settle(room: Room): Room {
+  const game = room.game;
+  if (!game || game.winners) return room;
+  const leaders = activeLeaders(room, game);
+  if (leaders.length > 1) return room;
+  return {
+    ...room,
+    phase: "over",
+    game: { ...game, pending: null, winners: leaders },
+  };
+}
+
+function remember(room: Room, game: Game): Game[] {
+  return [...room.history, game].slice(-HISTORY_LIMIT);
 }
 
 function join(room: Room, action: Extract<Action, { type: "join" }>): Result {
@@ -315,7 +545,19 @@ function removePlayer(room: Room, playerId: string): Room {
       : players.length > 0
         ? players[seat % players.length]!.id
         : null;
-  return { ...room, players, hostId };
+  const game = room.game;
+  if (!game || game.winners) return { ...room, players, hostId };
+  // Mid-game: a guess involving them is off, and if it was their team's turn
+  // it passes on. If they led a team, that team is out.
+  const pending =
+    game.pending &&
+    [game.pending.by, game.pending.team, game.pending.target].includes(playerId)
+      ? null
+      : game.pending;
+  const turn =
+    game.turn === playerId ? nextTurn(room, game, playerId) : game.turn;
+  const left = { ...room, players, hostId, game: { ...game, pending, turn } };
+  return room.phase === "play" ? settle(left) : left;
 }
 
 // A new shuffle, starting from the first slip.

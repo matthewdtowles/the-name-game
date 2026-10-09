@@ -2,6 +2,7 @@ import { Redirect } from "expo-router";
 
 import { Banner } from "../../components/Banner";
 import { Lobby } from "../../components/Lobby";
+import { Over } from "../../components/Over";
 import { Play } from "../../components/Play";
 import { Reveal } from "../../components/Reveal";
 import { Screen } from "../../components/Screen";
@@ -27,5 +28,7 @@ export default function Room() {
       return <Reveal room={game.room} />;
     case "play":
       return <Play room={game.room} />;
+    case "over":
+      return <Over room={game.room} />;
   }
 }
