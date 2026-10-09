@@ -1,4 +1,6 @@
-# The Name Game
+# Whose Name?
+
+Play at [whosename.app](https://whosename.app).
 
 A party-game companion for The Name Game. Everyone secretly writes down a famous
 person or someone everyone in the room knows. Then players take turns guessing who

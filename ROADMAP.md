@@ -32,6 +32,7 @@ each one.
 |---|---|---|
 | Clients | One **Expo** codebase (SDK 56, expo-router, TypeScript) builds the iOS app, the Android app, and the **web** version | Guests can join from a browser without installing anything. The TV view is just another web route. The stack and patterns come from `i-want-my-mtg-mobile`. |
 | Backend | **Serverless on AWS**: API Gateway WebSocket API → one Lambda (Node, arm64) → DynamoDB (on-demand, TTL) | Costs about $0 when idle and pennies per thousand games. There's no server to patch or keep alive. Multi-AZ by default, and it scales if the game takes off. Game state survives deploys and phones going to sleep. |
+| Name | **Whose Name?** at **whosename.app** (`play.` for the game server, `staging.` for staging) | It names the guessing at the heart of the game, and no App Store app uses it, while "The Name Game", "Fishbowl" and "Celebrity" are crowded. Store listings can add "The Name Game" as a subtitle so generic searches still find it. |
 | Web hosting | Expo static web export in **S3 + CloudFront**, with Route 53 DNS | Same CloudFront setup as `i-want-my-mtg`. The same domain serves the universal-link files. |
 | Infra as code | **AWS CDK (TypeScript)** in `infra/`, as its own stack in the existing AWS account. It's bootstrapped with a separate qualifier (`tng`), and every resource is tagged `project=the-name-game`. | Kept apart from the iwmm infra without the overhead of a second account. Separate CDK roles keep its deploys from touching iwmm resources. The tag isolates its costs. |
 | AWS access | A dedicated IAM user, `the-name-game-deployer` (local profile `the-name-game`), that can only assume the `cdk-tng-*` roles. CI uses a GitHub OIDC role scoped the same way. | Separate credentials from iwmm. No long-lived keys in GitHub. |
@@ -193,12 +194,9 @@ Keep it running, cheap, and safe.
 | API Gateway WebSocket | $1 per million messages + $0.25 per million connection-minutes. About **$0.0003 per 8-player game**. |
 | Lambda + DynamoDB | Free tier, then pennies |
 | S3 + CloudFront | Pennies |
-| Route 53 | $0.50/mo hosted zone + about $15/yr domain |
+| Route 53 | $0.50/mo hosted zone + $20/yr for whosename.app |
 | **Total at hobby scale** | **About $1–2/mo** |
 
 ## Open questions
 
-- **Domain and store name.** "The Name Game" is a common phrase (and a song). We need a
-  domain and possibly a more distinctive store name. Check App Store and Play Store
-  conflicts before committing.
 - **Room size.** What's the largest realistic group? This sets the free-tier cap, if any.

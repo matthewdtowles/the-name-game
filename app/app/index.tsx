@@ -22,7 +22,7 @@ export default function Home() {
   return (
     <Screen>
       <View style={styles.intro}>
-        <Text style={styles.title}>The Name Game</Text>
+        <Text style={styles.title}>Whose Name?</Text>
         <Text style={styles.lede}>
           Everyone puts a name in the hat. Nobody can tell whose handwriting it
           is.
