@@ -7,19 +7,36 @@ import {
   Stack,
   type StackProps,
 } from "aws-cdk-lib";
-import { WebSocketApi, WebSocketStage } from "aws-cdk-lib/aws-apigatewayv2";
+import {
+  Certificate,
+  CertificateValidation,
+} from "aws-cdk-lib/aws-certificatemanager";
+import {
+  ApiMapping,
+  DomainName,
+  WebSocketApi,
+  WebSocketStage,
+} from "aws-cdk-lib/aws-apigatewayv2";
 import { WebSocketLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
+import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 import type { Construct } from "constructs";
+
+import type { Zone } from "./zone";
 
 // The game server: an API Gateway WebSocket API in front of one Lambda, with
 // rooms in DynamoDB. Nothing here costs anything while nobody is playing.
 
 export class BackendStack extends Stack {
-  constructor(scope: Construct, id: string, props: StackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: StackProps & { domainName: string; zone: Zone },
+  ) {
     super(scope, id, props);
 
     // Rooms are ephemeral: TTL removes each one a day after its last activity,
@@ -65,6 +82,28 @@ export class BackendStack extends Stack {
     handler.addEnvironment("CONNECTIONS_URL", stage.callbackUrl);
     api.grantManageConnections(handler);
 
-    new CfnOutput(this, "WebSocketUrl", { value: stage.url });
+    // The app connects to the game server's own name, e.g. play.whosename.app.
+    const zone = HostedZone.fromHostedZoneAttributes(this, "Zone", props.zone);
+    const domain = new DomainName(this, "Domain", {
+      domainName: props.domainName,
+      certificate: new Certificate(this, "Certificate", {
+        domainName: props.domainName,
+        validation: CertificateValidation.fromDns(zone),
+      }),
+    });
+    new ApiMapping(this, "Mapping", { api, domainName: domain, stage });
+    new ARecord(this, "Alias", {
+      zone,
+      recordName: props.domainName,
+      target: RecordTarget.fromAlias(
+        new ApiGatewayv2DomainProperties(
+          domain.regionalDomainName,
+          domain.regionalHostedZoneId,
+        ),
+      ),
+    });
+
+    new CfnOutput(this, "WebSocketUrl", { value: `wss://${props.domainName}` });
+    new CfnOutput(this, "ApiEndpoint", { value: stage.url });
   }
 }

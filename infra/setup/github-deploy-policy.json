@@ -10,6 +10,28 @@
         "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-file-publishing-role-*",
         "arn:aws:iam::ACCOUNT_ID:role/cdk-tng-image-publishing-role-*"
       ]
+    },
+    {
+      "Sid": "PublishWeb",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": ["arn:aws:s3:::thenamegame*", "arn:aws:s3:::thenamegame*/*"]
+    },
+    {
+      "Sid": "RefreshCdn",
+      "Effect": "Allow",
+      "Action": "cloudfront:CreateInvalidation",
+      "Resource": "arn:aws:cloudfront::ACCOUNT_ID:distribution/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/project": "the-name-game"
+        }
+      }
     }
   ]
 }

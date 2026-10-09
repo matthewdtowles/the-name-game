@@ -107,10 +107,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Deploys the backend on every merge to main: staging first, a real game
-  # against it, then prod. CDK leaves unchanged stacks alone. Credentials come
-  # from GitHub's OIDC token via tng-github-deploy (infra/setup), which can only
-  # deploy TheNameGame* stacks.
+  # Deploys on every merge to main: staging first (backend, web, then a real
+  # game against it), then prod the same way. CDK leaves unchanged stacks
+  # alone. Credentials come from GitHub's OIDC token via tng-github-deploy
+  # (infra/setup), which can only deploy TheNameGame* stacks and publish to
+  # their buckets.
   deploy:
     needs: [release]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -135,14 +136,20 @@ jobs:
 
       - name: Deploy staging
         working-directory: infra
-        run: npx cdk deploy TheNameGameStagingBackend --require-approval never --outputs-file ../staging.json
+        run: npx cdk deploy TheNameGameStagingBackend TheNameGameStagingWeb --require-approval never --outputs-file ../staging.json
+
+      - name: Publish staging web
+        run: ./.github/scripts/publish-web.sh staging.json Staging
 
       - name: Smoke test staging
         run: ./.github/scripts/smoke.sh staging.json TheNameGameStagingBackend
 
       - name: Deploy prod
         working-directory: infra
-        run: npx cdk deploy TheNameGameProdBackend --require-approval never --outputs-file ../prod.json
+        run: npx cdk deploy TheNameGameProdBackend TheNameGameProdWeb --require-approval never --outputs-file ../prod.json
+
+      - name: Publish prod web
+        run: ./.github/scripts/publish-web.sh prod.json Prod
 
       - name: Smoke test prod
         run: ./.github/scripts/smoke.sh prod.json TheNameGameProdBackend
