@@ -1,10 +1,11 @@
-import type { RoomView } from "@tng/shared";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import type { RoomView, ScreenView } from "@tng/shared";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 
 import Home from "../app/index";
 import { Lobby } from "../components/Lobby";
 import { Play } from "../components/Play";
 import { Reveal } from "../components/Reveal";
+import { TvView } from "../components/Tv";
 import type { GameState } from "../lib/game/client";
 
 const mockGame: GameState & { send: jest.Mock; clearError: jest.Mock } = {
@@ -24,7 +25,7 @@ function room(overrides: Partial<RoomView> = {}): RoomView {
     code: "WXYZ",
     phase: "lobby",
     tier: "free",
-    settings: { reminders: 1 },
+    settings: { reminders: 1, revealSeconds: null },
     hostId: "p1",
     players: [
       { id: "p1", displayName: "Sam", connected: true, submitted: true },
@@ -33,7 +34,8 @@ function room(overrides: Partial<RoomView> = {}): RoomView {
     ],
     you: { playerId: "p1", submittedName: "Cher" },
     remindersLeft: 1,
-    names: null,
+    reveal: null,
+    tv: false,
     ...overrides,
   };
 }
@@ -158,34 +160,171 @@ describe("Lobby", () => {
     );
     expect(mockGame.send).toHaveBeenCalledWith({
       type: "updateSettings",
-      settings: { reminders: 2 },
+      settings: { reminders: 2, revealSeconds: null },
     });
+  });
+
+  it("lets the host set the reveal's pace", async () => {
+    await render(<Lobby room={room()} />);
+    await fireEvent.press(screen.getByRole("button", { name: "8 s" }));
+    expect(mockGame.send).toHaveBeenCalledWith({
+      type: "updateSettings",
+      settings: { reminders: 1, revealSeconds: 8 },
+    });
+  });
+
+  it("points the host at the TV page, and says when a TV is on", async () => {
+    await render(<Lobby room={room()} />);
+    expect(screen.getByText(/Have a TV\? Open .*\/tv\/WXYZ/)).toBeTruthy();
+    await render(<Lobby room={room({ tv: true })} />);
+    expect(screen.getByText("✓ Showing on a TV")).toBeTruthy();
   });
 });
 
 describe("Reveal", () => {
+  const reveal = (
+    index: number,
+    names: string[] | null = ["Cher", "Prince"],
+  ) => ({
+    index,
+    total: 2,
+    all: false,
+    names,
+  });
+
   it("walks the host through the names one at a time", async () => {
     await render(
-      <Reveal room={room({ phase: "reveal", names: ["Cher", "Prince"] })} />,
+      <Reveal room={room({ phase: "reveal", reveal: reveal(0) })} />,
     );
     expect(screen.getByText("Cher")).toBeTruthy();
     expect(screen.queryByText("Prince")).toBeNull();
     await fireEvent.press(screen.getByRole("button", { name: "Next name" }));
+    expect(mockGame.send).toHaveBeenCalledWith({ type: "revealTo", index: 1 });
+
+    await render(
+      <Reveal room={room({ phase: "reveal", reveal: reveal(1) })} />,
+    );
     expect(screen.getByText("Prince")).toBeTruthy();
     await fireEvent.press(screen.getByRole("button", { name: "Done reading" }));
     expect(mockGame.send).toHaveBeenCalledWith({ type: "finishReveal" });
   });
 
-  it("tells everyone else to listen", async () => {
+  it("turns the host's phone into a remote while a TV shows the names", async () => {
     await render(
       <Reveal
-        room={room({
-          phase: "reveal",
-          you: { playerId: "p2", submittedName: "x" },
-        })}
+        room={room({ phase: "reveal", tv: true, reveal: reveal(0, null) })}
       />,
     );
+    expect(screen.getByText(/The names are on the TV/)).toBeTruthy();
+    expect(screen.queryByText("Cher")).toBeNull();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Show all names" }),
+    );
+    expect(mockGame.send).toHaveBeenCalledWith({
+      type: "revealAll",
+      all: true,
+    });
+  });
+
+  it("moves on by itself at the host's pace", async () => {
+    jest.useFakeTimers();
+    try {
+      const settings = { reminders: 1, revealSeconds: 5 };
+      await render(
+        <Reveal
+          room={room({ phase: "reveal", settings, reveal: reveal(0) })}
+        />,
+      );
+      await act(() => jest.advanceTimersByTime(5000));
+      expect(mockGame.send).toHaveBeenCalledWith({
+        type: "revealTo",
+        index: 1,
+      });
+
+      await render(
+        <Reveal
+          room={room({ phase: "reveal", settings, reveal: reveal(1) })}
+        />,
+      );
+      await act(() => jest.advanceTimersByTime(5000));
+      expect(mockGame.send).toHaveBeenCalledWith({ type: "finishReveal" });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("tells everyone else where to look", async () => {
+    const player = { playerId: "p2", submittedName: "x" };
+    await render(<Reveal room={room({ phase: "reveal", you: player })} />);
     expect(screen.getByText("Listen up")).toBeTruthy();
+    await render(
+      <Reveal room={room({ phase: "reveal", you: player, tv: true })} />,
+    );
+    expect(screen.getByText("Eyes on the TV")).toBeTruthy();
+  });
+});
+
+describe("TV", () => {
+  const tvScreen = (overrides: Partial<ScreenView> = {}): ScreenView => ({
+    code: "WXYZ",
+    phase: "lobby",
+    hostId: null,
+    players: [],
+    remindersLeft: 1,
+    reveal: null,
+    ...overrides,
+  });
+
+  it("invites players to a new game", async () => {
+    await render(
+      <TvView status="open" screen={tvScreen()} onNewGame={jest.fn()} />,
+    );
+    expect(screen.getByText("WXYZ")).toBeTruthy();
+    expect(
+      screen.getByText("The first player to join hosts the game."),
+    ).toBeTruthy();
+  });
+
+  it("shows who's in without showing their names", async () => {
+    const players = room().players;
+    await render(
+      <TvView
+        status="open"
+        screen={tvScreen({ hostId: "p1", players })}
+        onNewGame={jest.fn()}
+      />,
+    );
+    expect(screen.getByText(/Sam starts the reveal/)).toBeTruthy();
+    expect(screen.getByText("✓ Alex")).toBeTruthy();
+    expect(screen.getByText("Jo")).toBeTruthy();
+  });
+
+  it("shows the slip on screen during the reveal", async () => {
+    const reveal = { index: 1, total: 3, slips: ["Prince"] };
+    await render(
+      <TvView
+        status="open"
+        screen={tvScreen({ phase: "reveal", reveal })}
+        onNewGame={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("Name 2 of 3")).toBeTruthy();
+    expect(screen.getByText("Prince")).toBeTruthy();
+  });
+
+  it("offers a new game once play starts", async () => {
+    const onNewGame = jest.fn();
+    await render(
+      <TvView
+        status="open"
+        screen={tvScreen({ phase: "play" })}
+        onNewGame={onNewGame}
+      />,
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Start a new game" }),
+    );
+    expect(onNewGame).toHaveBeenCalled();
   });
 });
 

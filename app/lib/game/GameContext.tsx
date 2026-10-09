@@ -13,12 +13,16 @@ import { deviceSessionStorage } from "./storage";
 
 const GameContext = createContext<GameClient | null>(null);
 
+// `enabled` is false on TV pages: a TV only watches, and a player session
+// resumed there would take that player's updates away from their phone.
 export function GameProvider({
   children,
   client,
+  enabled = true,
 }: {
   children: ReactNode;
   client?: GameClient;
+  enabled?: boolean;
 }) {
   const [instance] = useState(
     () =>
@@ -30,9 +34,10 @@ export function GameProvider({
       }),
   );
   useEffect(() => {
+    if (!enabled) return;
     void instance.start();
     return () => instance.stop();
-  }, [instance]);
+  }, [instance, enabled]);
   return (
     <GameContext.Provider value={instance}>{children}</GameContext.Provider>
   );
@@ -42,9 +47,5 @@ export function useGame() {
   const client = useContext(GameContext);
   if (!client) throw new Error("useGame must be used inside a GameProvider");
   const state = useSyncExternalStore(client.subscribe, client.getState);
-  return {
-    ...state,
-    send: client.send.bind(client),
-    clearError: client.clearError.bind(client),
-  };
+  return { ...state, send: client.send, clearError: client.clearError };
 }

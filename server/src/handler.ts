@@ -6,6 +6,7 @@ import {
   createRoom,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
+  screenFor,
   viewFor,
   type Action,
   type ErrorReason,
@@ -53,6 +54,11 @@ export async function handleMessage(
   if (message.type === "ping") return;
   const binding = await deps.store.getBinding(connectionId);
 
+  if (message.type === "display") {
+    if (binding) return sendError(deps, connectionId, "invalid_message");
+    return watch(deps, connectionId, message.code);
+  }
+
   if (
     message.type === "create" ||
     message.type === "join" ||
@@ -64,6 +70,10 @@ export async function handleMessage(
   }
 
   if (!binding) return sendError(deps, connectionId, "not_in_room");
+  // A TV only watches.
+  if (binding.playerId === null) {
+    return sendError(deps, connectionId, "invalid_message");
+  }
   const action = toAction(message, binding.playerId);
   const outcome = await mutate(deps.store, binding.code, (record) => {
     const result = apply(record.room, action, random);
@@ -95,19 +105,21 @@ export async function handleDisconnect(
   const binding = await deps.store.getBinding(connectionId);
   if (!binding) return;
   await deps.store.deleteBinding(connectionId);
+  const { playerId } = binding;
   const outcome = await mutate(deps.store, binding.code, (record) => {
+    if (playerId === null) {
+      if (!record.displays.includes(connectionId)) return record;
+      const result = apply(record.room, { type: "detachDisplay" }, random);
+      if (!result.ok) return record;
+      const displays = record.displays.filter((c) => c !== connectionId);
+      return { ...record, room: result.room, displays };
+    }
     // A socket that closes after its player resumed elsewhere changes nothing.
-    if (record.connections[binding.playerId] !== connectionId) return record;
-    const result = apply(
-      record.room,
-      { type: "disconnect", playerId: binding.playerId },
-      random,
-    );
+    if (record.connections[playerId] !== connectionId) return record;
+    const result = apply(record.room, { type: "disconnect", playerId }, random);
     if (!result.ok) return record;
     const connections = Object.fromEntries(
-      Object.entries(record.connections).filter(
-        ([playerId]) => playerId !== binding.playerId,
-      ),
+      Object.entries(record.connections).filter(([id]) => id !== playerId),
     );
     return { ...record, room: result.room, connections };
   });
@@ -128,12 +140,17 @@ async function enter(
   if (message.type === "create") {
     playerId = randomUUID();
     sessionToken = newToken();
-    const created = await createUniqueRoom(deps.store, {
+    const host = {
       id: playerId,
       sessionToken,
       displayName: message.displayName,
-      connectionId,
-    });
+    };
+    const created = await createUniqueRoom(deps.store, (code) => ({
+      room: createRoom({ code, tier: "free", host }),
+      connections: { [host.id]: connectionId },
+      displays: [],
+      version: 1,
+    }));
     if (!created) throw new Error("Could not find a free room code");
     record = created;
   } else if (message.type === "join") {
@@ -200,30 +217,62 @@ async function enter(
   await broadcast(deps, record);
 }
 
+// A TV attaching: to a new room it waits in for players, or back to its room
+// after a reload.
+async function watch(
+  deps: Deps,
+  connectionId: string,
+  code: string | undefined,
+): Promise<void> {
+  let record: RoomRecord;
+  if (code === undefined) {
+    const created = await createUniqueRoom(deps.store, (newCode) =>
+      withDisplay(
+        {
+          room: createRoom({ code: newCode, tier: "free" }),
+          connections: {},
+          displays: [],
+          version: 1,
+        },
+        connectionId,
+      ),
+    );
+    if (!created) throw new Error("Could not find a free room code");
+    record = created;
+  } else {
+    const outcome = await mutate(deps.store, code, (current) =>
+      withDisplay(current, connectionId),
+    );
+    if (typeof outcome === "string")
+      return sendError(deps, connectionId, outcome);
+    record = outcome.next;
+  }
+
+  await deps.store.putBinding(connectionId, {
+    code: record.room.code,
+    playerId: null,
+  });
+  await deps.send(connectionId, { type: "watching", code: record.room.code });
+  await broadcast(deps, record);
+}
+
+function withDisplay(record: RoomRecord, connectionId: string): RoomRecord {
+  const result = apply(record.room, { type: "attachDisplay" }, random);
+  if (!result.ok) throw new Error(`Couldn't attach a TV: ${result.reason}`);
+  return {
+    ...record,
+    room: result.room,
+    displays: [...record.displays, connectionId],
+  };
+}
+
+// Builds a room under a fresh code, retrying on the rare collision.
 async function createUniqueRoom(
   store: Store,
-  host: {
-    id: string;
-    sessionToken: string;
-    displayName: string;
-    connectionId: string;
-  },
+  build: (code: string) => RoomRecord,
 ): Promise<RoomRecord | null> {
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-    const room = createRoom({
-      code: newCode(),
-      tier: "free",
-      host: {
-        id: host.id,
-        sessionToken: host.sessionToken,
-        displayName: host.displayName,
-      },
-    });
-    const record: RoomRecord = {
-      room,
-      connections: { [host.id]: host.connectionId },
-      version: 1,
-    };
+    const record = build(newCode());
     if (await store.putRoom(record, null)) return record;
   }
   return null;
@@ -231,7 +280,7 @@ async function createUniqueRoom(
 
 // Read, change, and conditionally write a room, retrying when another write
 // got there first. Returning the record unchanged skips the write; a room
-// left with no players is deleted.
+// left with no players and no TV is deleted.
 async function mutate(
   store: Store,
   code: string,
@@ -244,7 +293,7 @@ async function mutate(
     if (typeof changed === "string") return changed;
     if (changed === prev) return { prev, next: prev };
     const next = { ...changed, version: prev.version + 1 };
-    if (next.room.players.length === 0) {
+    if (next.room.players.length === 0 && next.displays.length === 0) {
       await store.deleteRoom(code);
       return { prev, next };
     }
@@ -254,17 +303,21 @@ async function mutate(
 }
 
 async function broadcast(deps: Deps, record: RoomRecord): Promise<void> {
-  await Promise.all(
-    Object.entries(record.connections).map(([playerId, conn]) =>
+  const screen = screenFor(record.room);
+  await Promise.all([
+    ...Object.entries(record.connections).map(([playerId, conn]) =>
       deps.send(conn, { type: "room", room: viewFor(record.room, playerId) }),
     ),
-  );
+    ...record.displays.map((conn) =>
+      deps.send(conn, { type: "screen", screen }),
+    ),
+  ]);
 }
 
 function toAction(
   message: Exclude<
     ClientMessage,
-    { type: "create" | "join" | "resume" | "ping" }
+    { type: "create" | "join" | "resume" | "ping" | "display" }
   >,
   playerId: string,
 ): Action {
@@ -275,6 +328,10 @@ function toAction(
       return { type: "updateSettings", playerId, settings: message.settings };
     case "kick":
       return { type: "kick", playerId, targetId: message.playerId };
+    case "revealTo":
+      return { type: "revealTo", playerId, index: message.index };
+    case "revealAll":
+      return { type: "revealAll", playerId, all: message.all };
     case "startReveal":
     case "finishReveal":
     case "remind":

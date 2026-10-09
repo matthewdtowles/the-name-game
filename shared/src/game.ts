@@ -3,6 +3,7 @@ import {
   type ErrorReason,
   type Phase,
   type RoomView,
+  type ScreenView,
   type Settings,
   type Tier,
 } from "./protocol";
@@ -24,21 +25,32 @@ export interface Player {
   name: string | null;
 }
 
+export interface Reveal {
+  // The shuffled names.
+  order: string[];
+  // The slip on show, and whether every slip is showing instead.
+  index: number;
+  all: boolean;
+}
+
 export interface Room {
   code: string;
   tier: Tier;
   phase: Phase;
   settings: Settings;
-  hostId: string;
+  // Null only while a TV waits for its first player, who becomes host.
+  hostId: string | null;
   // In seat order. Join order sets the seats.
   players: Player[];
+  // TVs showing the room. While there's one, names appear only on the TV.
+  displays: number;
   remindersLeft: number;
-  // The shuffled names for the current reveal; null until the first reveal.
-  revealOrder: string[] | null;
+  // The current or last reveal; null until the first one.
+  reveal: Reveal | null;
 }
 
-// Every action carries the acting player's id, resolved by the server from the
-// connection, never trusted from the client.
+// Player actions carry the acting player's id, resolved by the server from the
+// connection, never trusted from the client. TVs attach and detach anonymously.
 export type Action =
   | {
       type: "join";
@@ -46,6 +58,8 @@ export type Action =
       sessionToken: string;
       displayName: string;
     }
+  | { type: "attachDisplay" }
+  | { type: "detachDisplay" }
   | { type: "connect"; playerId: string }
   | { type: "disconnect"; playerId: string }
   | { type: "leave"; playerId: string }
@@ -53,6 +67,8 @@ export type Action =
   | { type: "submitName"; playerId: string; name: string }
   | { type: "updateSettings"; playerId: string; settings: Settings }
   | { type: "startReveal"; playerId: string }
+  | { type: "revealTo"; playerId: string; index: number }
+  | { type: "revealAll"; playerId: string; all: boolean }
   | { type: "finishReveal"; playerId: string }
   | { type: "remind"; playerId: string };
 
@@ -62,25 +78,39 @@ export type Result =
 // A [0, 1) source, like Math.random. The server passes a crypto-backed one.
 export type Random = () => number;
 
+export const DEFAULT_SETTINGS: Settings = {
+  reminders: DEFAULT_REMINDERS,
+  revealSeconds: null,
+};
+
+// A room starts with its host, or, when a TV creates it, with nobody yet.
 export function createRoom(input: {
   code: string;
   tier: Tier;
-  host: { id: string; sessionToken: string; displayName: string };
+  host?: { id: string; sessionToken: string; displayName: string };
 }): Room {
   return {
     code: input.code,
     tier: input.tier,
     phase: "lobby",
-    settings: { reminders: DEFAULT_REMINDERS },
-    hostId: input.host.id,
-    players: [{ ...input.host, connected: true, name: null }],
-    remindersLeft: DEFAULT_REMINDERS,
-    revealOrder: null,
+    settings: DEFAULT_SETTINGS,
+    hostId: input.host?.id ?? null,
+    players: input.host ? [{ ...input.host, connected: true, name: null }] : [],
+    displays: 0,
+    remindersLeft: DEFAULT_SETTINGS.reminders,
+    reveal: null,
   };
 }
 
 export function apply(room: Room, action: Action, random: Random): Result {
-  if (action.type === "join") return join(room, action);
+  switch (action.type) {
+    case "join":
+      return join(room, action);
+    case "attachDisplay":
+      return ok({ ...room, displays: room.displays + 1 });
+    case "detachDisplay":
+      return ok({ ...room, displays: Math.max(0, room.displays - 1) });
+  }
 
   const actor = room.players.find((p) => p.id === action.playerId);
   if (!actor) return fail("not_in_room");
@@ -143,12 +173,23 @@ export function apply(room: Room, action: Action, random: Random): Result {
         p.name === null ? [] : [p.name],
       );
       if (names.length < 2) return fail("not_enough_names");
+      return ok({ ...room, phase: "reveal", reveal: fresh(names, random) });
+    }
+
+    case "revealTo":
+      if (!isHost) return fail("not_host");
+      if (room.phase !== "reveal" || !room.reveal) return fail("wrong_phase");
+      if (action.index >= room.reveal.order.length)
+        return fail("invalid_message");
       return ok({
         ...room,
-        phase: "reveal",
-        revealOrder: shuffle(names, random),
+        reveal: { ...room.reveal, index: action.index, all: false },
       });
-    }
+
+    case "revealAll":
+      if (!isHost) return fail("not_host");
+      if (room.phase !== "reveal" || !room.reveal) return fail("wrong_phase");
+      return ok({ ...room, reveal: { ...room.reveal, all: action.all } });
 
     case "finishReveal":
       if (!isHost) return fail("not_host");
@@ -163,34 +204,62 @@ export function apply(room: Room, action: Action, random: Random): Result {
         ...room,
         phase: "reveal",
         remindersLeft: room.remindersLeft - 1,
-        revealOrder: shuffle(room.revealOrder ?? [], random),
+        reveal: fresh(room.reveal?.order ?? [], random),
       });
   }
 }
 
 // What one player is allowed to see. Other players' names never leave the
-// server, and the shuffled list goes only to the host, only while revealing.
+// server, and the shuffled list goes only to the host, only while revealing,
+// and only when no TV is showing it to everyone instead.
 export function viewFor(room: Room, playerId: string): RoomView {
   const you = room.players.find((p) => p.id === playerId);
-  if (!you) throw new Error(`Player ${playerId} is not in room ${room.code}`);
+  if (!you || room.hostId === null) {
+    throw new Error(`Player ${playerId} is not in room ${room.code}`);
+  }
+  const revealing = room.phase === "reveal" && room.reveal;
   return {
     code: room.code,
     phase: room.phase,
     tier: room.tier,
     settings: room.settings,
     hostId: room.hostId,
-    players: room.players.map((p) => ({
-      id: p.id,
-      displayName: p.displayName,
-      connected: p.connected,
-      submitted: p.name !== null,
-    })),
+    players: playerViews(room),
     you: { playerId: you.id, submittedName: you.name },
     remindersLeft: room.remindersLeft,
-    names:
-      room.phase === "reveal" && playerId === room.hostId
-        ? room.revealOrder
-        : null,
+    reveal: revealing
+      ? {
+          index: revealing.index,
+          total: revealing.order.length,
+          all: revealing.all,
+          names:
+            playerId === room.hostId && room.displays === 0
+              ? revealing.order
+              : null,
+        }
+      : null,
+    tv: room.displays > 0,
+  };
+}
+
+// What a TV shows: never anyone's submitted name except the slips on screen.
+export function screenFor(room: Room): ScreenView {
+  const revealing = room.phase === "reveal" && room.reveal;
+  return {
+    code: room.code,
+    phase: room.phase,
+    hostId: room.hostId,
+    players: playerViews(room),
+    remindersLeft: room.remindersLeft,
+    reveal: revealing
+      ? {
+          index: revealing.index,
+          total: revealing.order.length,
+          slips: revealing.all
+            ? revealing.order
+            : [revealing.order[revealing.index]!],
+        }
+      : null,
   };
 }
 
@@ -202,6 +271,15 @@ export function normalizeName(name: string): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function playerViews(room: Room) {
+  return room.players.map((p) => ({
+    id: p.id,
+    displayName: p.displayName,
+    connected: p.connected,
+    submitted: p.name !== null,
+  }));
 }
 
 function join(room: Room, action: Extract<Action, { type: "join" }>): Result {
@@ -219,19 +297,30 @@ function join(room: Room, action: Extract<Action, { type: "join" }>): Result {
     connected: true,
     name: null,
   };
-  return ok({ ...room, players: [...room.players, player] });
+  return ok({
+    ...room,
+    players: [...room.players, player],
+    hostId: room.hostId ?? player.id,
+  });
 }
 
 // When the host goes, hosting passes to the next player in seat order. A room
-// left with no players is the server's to delete.
+// left with no players and no TV is the server's to delete.
 function removePlayer(room: Room, playerId: string): Room {
   const seat = room.players.findIndex((p) => p.id === playerId);
   const players = room.players.filter((p) => p.id !== playerId);
   const hostId =
-    playerId === room.hostId && players.length > 0
-      ? players[seat % players.length]!.id
-      : room.hostId;
+    playerId !== room.hostId
+      ? room.hostId
+      : players.length > 0
+        ? players[seat % players.length]!.id
+        : null;
   return { ...room, players, hostId };
+}
+
+// A new shuffle, starting from the first slip.
+function fresh(names: readonly string[], random: Random): Reveal {
+  return { order: shuffle(names, random), index: 0, all: false };
 }
 
 // Fisher-Yates.

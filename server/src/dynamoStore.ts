@@ -43,6 +43,7 @@ export class DynamoStore implements Store {
     return {
       room: Item.room,
       connections: Item.connections,
+      displays: Item.displays ?? [],
       version: Item.version,
     };
   }
@@ -59,6 +60,7 @@ export class DynamoStore implements Store {
             pk: roomKey(record.room.code),
             room: record.room,
             connections: record.connections,
+            displays: record.displays,
             version: record.version,
             expiresAt: this.expiry(),
           },
@@ -93,7 +95,7 @@ export class DynamoStore implements Store {
         Key: { pk: connectionKey(connectionId) },
       }),
     );
-    return Item ? { code: Item.code, playerId: Item.playerId } : null;
+    return Item ? { code: Item.code, playerId: Item.playerId ?? null } : null;
   }
 
   async putBinding(connectionId: string, binding: Binding): Promise<void> {

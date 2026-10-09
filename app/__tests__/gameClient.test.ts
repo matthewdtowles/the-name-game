@@ -42,14 +42,15 @@ const room: RoomView = {
   code: "WXYZ",
   phase: "lobby",
   tier: "free",
-  settings: { reminders: 1 },
+  settings: { reminders: 1, revealSeconds: null },
   hostId: "p1",
   players: [
     { id: "p1", displayName: "Sam", connected: true, submitted: false },
   ],
   you: { playerId: "p1", submittedName: null },
   remindersLeft: 1,
-  names: null,
+  reveal: null,
+  tv: false,
 };
 
 let stored: Session | null;

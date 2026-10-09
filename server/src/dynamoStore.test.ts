@@ -30,6 +30,7 @@ const record: RoomRecord = {
     host: { id: "p1", sessionToken: "t1", displayName: "Sam" },
   }),
   connections: { p1: "c1" },
+  displays: ["tv1"],
   version: 2,
 };
 

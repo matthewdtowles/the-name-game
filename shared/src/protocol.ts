@@ -12,6 +12,8 @@ export const DISPLAY_NAME_MAX = 20;
 export const SECRET_NAME_MAX = 60;
 export const DEFAULT_REMINDERS = 1;
 export const MAX_REMINDERS = 5;
+export const MIN_REVEAL_SECONDS = 3;
+export const MAX_REVEAL_SECONDS = 30;
 
 export const RoomCode = z
   .string()
@@ -38,6 +40,13 @@ export const Phase = z.enum(["lobby", "reveal", "play"]);
 
 export const Settings = z.object({
   reminders: z.int().min(0).max(MAX_REMINDERS),
+  // Seconds each name stays up before the reveal moves on by itself; null
+  // means the host moves it along by hand.
+  revealSeconds: z
+    .int()
+    .min(MIN_REVEAL_SECONDS)
+    .max(MAX_REVEAL_SECONDS)
+    .nullable(),
 });
 
 export const ClientMessage = z.discriminatedUnion("type", [
@@ -59,6 +68,13 @@ export const ClientMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("finishReveal") }),
   z.object({ type: z.literal("remind") }),
   z.object({ type: z.literal("leave") }),
+  // Host: which slip the reveal shows, by position, so a repeated tap can't
+  // skip one. `all` shows every slip at once.
+  z.object({ type: z.literal("revealTo"), index: z.int().min(0) }),
+  z.object({ type: z.literal("revealAll"), all: z.boolean() }),
+  // A TV attaching as a display: to a new room when there's no code (the first
+  // phone to join hosts it), or back to its room after a reload.
+  z.object({ type: z.literal("display"), code: RoomCode.optional() }),
   // Heartbeat: keeps an idle socket open (API Gateway closes them after 10
   // minutes). The server ignores it.
   z.object({ type: z.literal("ping") }),
@@ -86,6 +102,15 @@ export const PlayerView = z.object({
   submitted: z.boolean(),
 });
 
+// Where the reveal is. `names` is the shuffled list, sent only to the host and
+// only when no TV is showing it.
+export const RevealView = z.object({
+  index: z.int().min(0),
+  total: z.int().min(0),
+  all: z.boolean(),
+  names: z.array(SecretName).nullable(),
+});
+
 export const RoomView = z.object({
   code: RoomCode,
   phase: Phase,
@@ -99,8 +124,27 @@ export const RoomView = z.object({
     submittedName: SecretName.nullable(),
   }),
   remindersLeft: z.int().min(0),
-  // The shuffled names, sent only to the host and only during the reveal.
-  names: z.array(SecretName).nullable(),
+  // Set only during the reveal.
+  reveal: RevealView.nullable(),
+  // A TV is showing the game, so the reveal happens there.
+  tv: z.boolean(),
+});
+
+// What a TV shows. During the reveal, `slips` holds only what's on screen: the
+// current name, or all of them when the host shows them all.
+export const ScreenView = z.object({
+  code: RoomCode,
+  phase: Phase,
+  hostId: PlayerId.nullable(),
+  players: z.array(PlayerView),
+  remindersLeft: z.int().min(0),
+  reveal: z
+    .object({
+      index: z.int().min(0),
+      total: z.int().min(0),
+      slips: z.array(SecretName),
+    })
+    .nullable(),
 });
 
 export const ServerMessage = z.discriminatedUnion("type", [
@@ -113,6 +157,9 @@ export const ServerMessage = z.discriminatedUnion("type", [
     sessionToken: SessionToken,
   }),
   z.object({ type: z.literal("room"), room: RoomView }),
+  // Sent to a TV once it's attached, then the screen on every change.
+  z.object({ type: z.literal("watching"), code: RoomCode }),
+  z.object({ type: z.literal("screen"), screen: ScreenView }),
   // Sent to a player who left or was kicked; the client forgets its session.
   z.object({ type: z.literal("removed") }),
   z.object({
@@ -129,4 +176,6 @@ export type ClientMessage = z.infer<typeof ClientMessage>;
 export type ErrorReason = z.infer<typeof ErrorReason>;
 export type PlayerView = z.infer<typeof PlayerView>;
 export type RoomView = z.infer<typeof RoomView>;
+export type RevealView = z.infer<typeof RevealView>;
+export type ScreenView = z.infer<typeof ScreenView>;
 export type ServerMessage = z.infer<typeof ServerMessage>;
