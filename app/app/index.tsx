@@ -1,5 +1,5 @@
 import { ROOM_CODE_LENGTH } from "@tng/shared";
-import { Redirect } from "expo-router";
+import { Link, Redirect } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -68,6 +68,10 @@ export default function Home() {
           onPress={() => game.send({ type: "join", code, displayName })}
         />
       </View>
+
+      <Link href="/privacy" style={styles.privacy}>
+        Privacy
+      </Link>
     </Screen>
   );
 }
@@ -77,4 +81,5 @@ const styles = StyleSheet.create({
   title: { ...type.display, color: colors.paper },
   lede: { ...type.body, color: colors.dusk, maxWidth: 360 },
   join: { gap: space.md, paddingTop: space.lg },
+  privacy: { ...type.small, color: colors.dusk, paddingVertical: space.md },
 });
