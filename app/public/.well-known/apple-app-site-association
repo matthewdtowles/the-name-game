@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["2D6GN2T587.com.matthewdtowles.whosename"],
+        "components": [{ "/": "/j/*" }]
+      }
+    ]
+  }
+}

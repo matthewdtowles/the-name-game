@@ -1,4 +1,5 @@
 import type { RevealView, RoomView } from "@tng/shared";
+import { useKeepAwake } from "expo-keep-awake";
 import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -9,6 +10,8 @@ import { Screen } from "./Screen";
 import { Slip } from "./Slip";
 
 export function Reveal({ room }: { room: RoomView }) {
+  // Nobody touches their phone while the names are read, so keep it on.
+  useKeepAwake(undefined, { suppressDeactivateWarnings: true });
   const host = room.players.find((p) => p.id === room.hostId);
   const hostName = host?.displayName ?? "The host";
   if (room.you.playerId === room.hostId && room.reveal) {
