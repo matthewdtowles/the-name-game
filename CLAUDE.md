@@ -35,6 +35,12 @@ npm run smoke -w @tng/server -- wss://...   # play a game against a server
 cd infra && AWS_PROFILE=the-name-game npx cdk deploy TheNameGameStagingBackend
 ```
 
+The iOS and Android apps build on EAS (`app/eas.json`): `preview` builds talk to
+staging and `production` builds to prod. The `ship` workflow (run by hand) builds
+both and submits them to TestFlight and a Play track. The app's version is the
+latest release tag (`app/app.config.ts`). `app/scripts/make-icons.sh` redraws
+the icons and splash with ImageMagick.
+
 Merging to `main` deploys from CI: staging (stacks, web publish, smoke test),
 then prod the same way. Deploy by hand only to try something on staging; after
 `cdk deploy ... --outputs-file ../staging.json`, publish the web app with
