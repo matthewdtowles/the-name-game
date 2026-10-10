@@ -1,9 +1,19 @@
+import { RoomCode } from "@tng/shared";
 import { Platform, Share } from "react-native";
 
 import { WEB_URL } from "./config";
 
 export function joinUrl(code: string): string {
   return `${WEB_URL}/j/${code}`;
+}
+
+// The room code in a scanned QR code: a join link from a phone or a TV, or
+// null for anything else.
+export function codeFromScan(data: string): string | null {
+  const match = /^https?:\/\/[^/]+\/j\/([^/?#]+)/i.exec(data.trim());
+  if (!match) return null;
+  const code = RoomCode.safeParse(match[1]);
+  return code.success ? code.data : null;
 }
 
 // Where a TV shows an existing game.
