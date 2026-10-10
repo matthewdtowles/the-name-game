@@ -11,7 +11,8 @@
       "bundleIdentifier": "com.matthewdtowles.whosename",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": ["applinks:whosename.app"]
     },
     "android": {
       "package": "com.matthewdtowles.whosename",
@@ -19,7 +20,21 @@
         "backgroundColor": "#211C36",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "whosename.app",
+              "pathPrefix": "/j/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +53,14 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#211C36"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Whose Name? uses the camera to scan the code that joins a game.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ]
     ],

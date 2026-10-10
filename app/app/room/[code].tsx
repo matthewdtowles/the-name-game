@@ -7,9 +7,11 @@ import { Play } from "../../components/Play";
 import { Reveal } from "../../components/Reveal";
 import { Screen } from "../../components/Screen";
 import { useGame } from "../../lib/game/GameContext";
+import { useGameBuzz } from "../../lib/haptics";
 
 export default function Room() {
   const game = useGame();
+  useGameBuzz(game.room);
 
   // No session: never joined, left, or was removed.
   if (!game.session) return <Redirect href="/" />;
