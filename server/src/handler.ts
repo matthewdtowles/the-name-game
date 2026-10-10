@@ -36,12 +36,12 @@ const MESSAGES: Record<ErrorReason, string> = {
   wrong_phase: "You can't do that right now.",
   not_enough_names: "At least two names are needed to start.",
   no_reminders_left: "There are no reminders left.",
-  not_your_turn: "It’s not your turn.",
-  invalid_target: "You can only guess another team’s leader.",
+  not_your_turn: "It's not your turn.",
+  invalid_target: "You can only guess another team's leader.",
   guess_pending: "Wait for the last guess to be answered.",
-  no_guess_pending: "There’s no guess to answer.",
+  no_guess_pending: "There's no guess to answer.",
   reminders_left: "Use up the reminders before ending the round.",
-  nothing_to_undo: "There’s nothing to undo.",
+  nothing_to_undo: "There's nothing to undo.",
 };
 
 // crypto.randomInt's range must stay below 2^48.

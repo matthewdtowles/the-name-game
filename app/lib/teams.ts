@@ -9,7 +9,6 @@ export interface Team {
 }
 
 export function teamsOf(players: PlayerView[]): Team[] {
-  const byId = new Map(players.map((p) => [p.id, p]));
   return players
     .filter((p) => p.team === p.id)
     .map((leader) => ({
@@ -18,8 +17,7 @@ export function teamsOf(players: PlayerView[]): Team[] {
         leader,
         ...players.filter((p) => p.team === leader.id && p.id !== leader.id),
       ],
-    }))
-    .filter((team) => byId.has(team.leader.id));
+    }));
 }
 
 // Players in the room who aren't on any team still in the game: those who put
