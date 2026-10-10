@@ -14,7 +14,9 @@ import type { Status } from "../lib/game/connection";
 import { ScreenClient } from "../lib/game/screenClient";
 import { tvCodeStorage } from "../lib/game/storage";
 import { joinUrl } from "../lib/invite";
+import { describeGuess, teamsOf } from "../lib/teams";
 import { colors, fonts, space } from "../lib/theme";
+import { winnersText } from "./Over";
 import { Slip } from "./Slip";
 
 // The game on a TV, read from across the room: a big code and QR to join,
@@ -69,8 +71,10 @@ export function TvView({
         <Lobby screen={screen} k={k} />
       ) : screen.phase === "reveal" && screen.reveal ? (
         <Reveal reveal={screen.reveal} k={k} />
+      ) : screen.phase === "over" ? (
+        <Over screen={screen} k={k} onNewGame={onNewGame} />
       ) : (
-        <Play screen={screen} k={k} onNewGame={onNewGame} />
+        <Play screen={screen} k={k} />
       )}
       {screen && status !== "open" ? (
         <Text style={[styles.reconnecting, { fontSize: 18 * k }]}>
@@ -119,7 +123,7 @@ function Lobby({ screen, k }: { screen: ScreenView; k: number }) {
             : "The first player to join hosts the game."}
         </Text>
       </View>
-      <Players screen={screen} k={k} showSubmitted />
+      <Players screen={screen} k={k} />
     </View>
   );
 }
@@ -170,7 +174,63 @@ function Reveal({
   );
 }
 
-function Play({
+// The game board, for everyone to follow from the couch.
+function Play({ screen, k }: { screen: ScreenView; k: number }) {
+  const game = screen.game;
+  const teams = teamsOf(screen.players);
+  const turn = teams.find((t) => t.leader.id === game?.turn);
+  const guess = game ? describeGuess(game, screen.players) : null;
+  const left = screen.remindersLeft;
+  return (
+    <View style={{ gap: space.xl * k }}>
+      <Text style={[styles.title, { fontSize: 72 * k, lineHeight: 80 * k }]}>
+        {turn ? `${turn.leader.displayName}’s team’s turn` : "Game on"}
+      </Text>
+      <Text style={[styles.body, { fontSize: 30 * k, lineHeight: 40 * k }]}>
+        {guess
+          ? `${guess.guesser} is guessing ${guess.target}…`
+          : "Pick another team’s leader and say who you think they wrote."}{" "}
+        {left === 0
+          ? "No reminders left."
+          : `${left === 1 ? "1 reminder" : `${left} reminders`} left.`}
+      </Text>
+      <View style={[styles.board, { gap: space.xl * k }]}>
+        {teams.map((team) => (
+          <View
+            key={team.leader.id}
+            style={[
+              styles.team,
+              { padding: space.lg * k, gap: space.sm * k },
+              team.leader.id === game?.turn && styles.turn,
+            ]}
+          >
+            <Text style={[styles.teamName, { fontSize: 30 * k }]}>
+              {team.leader.displayName}’s team
+            </Text>
+            {team.members.map((p) => (
+              <View key={p.id}>
+                <Text style={[styles.player, { fontSize: 26 * k }]}>
+                  {p.displayName}
+                </Text>
+                <Text
+                  style={[
+                    p.name ? styles.written : styles.secret,
+                    { fontSize: 22 * k },
+                  ]}
+                >
+                  {p.name ?? "?"}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// The end: who won, then every slip with the player who wrote it.
+function Over({
   screen,
   k,
   onNewGame,
@@ -179,19 +239,31 @@ function Play({
   k: number;
   onNewGame: () => void;
 }) {
-  const left = screen.remindersLeft;
+  const { title, detail } = winnersText(screen);
   return (
     <View style={[styles.center, { gap: space.xl * k }]}>
-      <Text style={[styles.title, { fontSize: 96 * k, lineHeight: 104 * k }]}>
-        Game on
+      <Text style={[styles.title, { fontSize: 88 * k, lineHeight: 96 * k }]}>
+        {title}
       </Text>
-      <Text style={[styles.body, { fontSize: 32 * k, lineHeight: 42 * k }]}>
-        Take turns guessing who wrote which name.{" "}
-        {left === 0
-          ? "No reminders left."
-          : `${left === 1 ? "1 reminder" : `${left} reminders`} left.`}
-      </Text>
-      <Players screen={screen} k={k} showSubmitted={false} />
+      {detail ? (
+        <Text style={[styles.body, { fontSize: 30 * k, lineHeight: 40 * k }]}>
+          {detail}
+        </Text>
+      ) : null}
+      <View style={[styles.grid, { gap: space.lg * k }]}>
+        {screen.players
+          .filter((p) => p.name)
+          .map((p, i) => (
+            <Slip key={p.id} tilt={i % 2 === 0 ? -1.5 : 1.5}>
+              <Text style={[styles.slipName, { fontSize: 32 * k }]}>
+                {p.name}
+              </Text>
+              <Text style={[styles.wroteBy, { fontSize: 20 * k }]}>
+                {p.displayName}
+              </Text>
+            </Slip>
+          ))}
+      </View>
       <Pressable accessibilityRole="button" onPress={onNewGame}>
         <Text style={[styles.newGame, { fontSize: 20 * k }]}>
           Start a new game
@@ -201,15 +273,7 @@ function Play({
   );
 }
 
-function Players({
-  screen,
-  k,
-  showSubmitted,
-}: {
-  screen: ScreenView;
-  k: number;
-  showSubmitted: boolean;
-}) {
+function Players({ screen, k }: { screen: ScreenView; k: number }) {
   if (screen.players.length === 0) return null;
   return (
     <View
@@ -227,7 +291,7 @@ function Players({
             !p.connected && styles.away,
           ]}
         >
-          {showSubmitted && p.submitted ? "✓ " : ""}
+          {p.submitted ? "✓ " : ""}
           {p.displayName}
         </Text>
       ))}
@@ -277,6 +341,23 @@ const styles = StyleSheet.create({
   players: { flexDirection: "row", flexWrap: "wrap", maxWidth: 900 },
   player: { fontFamily: fonts.semibold, color: colors.paper },
   away: { opacity: 0.4 },
+  board: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start" },
+  team: {
+    minWidth: 220,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: colors.line,
+    backgroundColor: colors.tableRaised,
+  },
+  turn: { borderColor: colors.paper },
+  teamName: { fontFamily: fonts.heavy, color: colors.paper },
+  written: { fontFamily: fonts.semibold, color: colors.felt },
+  secret: { fontFamily: fonts.regular, color: colors.dusk },
+  wroteBy: {
+    fontFamily: fonts.regular,
+    color: colors.ink,
+    textAlign: "center",
+  },
   newGame: {
     fontFamily: fonts.semibold,
     color: colors.dusk,

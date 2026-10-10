@@ -251,3 +251,30 @@ describe("TVs", () => {
     assert.equal(await deps.store.getRoom(code), null);
   });
 });
+
+describe("the guessing game", () => {
+  it("runs a guess from the guesser's phone to the target's answer", async () => {
+    await hostAndJoin();
+    await send("c-host", { type: "submitName", name: "Cher" });
+    await send("c-alex", { type: "submitName", name: "Prince" });
+    await send("c-host", { type: "startReveal" });
+    await send("c-host", { type: "finishReveal" });
+    const alexId = last("c-alex", "welcome").playerId;
+    const hostId = last("c-host", "welcome").playerId;
+
+    await send("c-alex", { type: "guess", playerId: hostId });
+    assert.equal(last("c-alex", "error").reason, "not_your_turn");
+
+    await send("c-host", { type: "guess", playerId: alexId });
+    assert.equal(last("c-alex", "room").room.game?.pending?.target, alexId);
+    await send("c-alex", { type: "answerGuess", correct: true });
+
+    const { room } = last("c-host", "room");
+    assert.equal(room.phase, "over");
+    assert.deepEqual(room.game?.winners, [hostId]);
+    assert.deepEqual(
+      room.players.map((p) => p.name),
+      ["Cher", "Prince"],
+    );
+  });
+});

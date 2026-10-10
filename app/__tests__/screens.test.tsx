@@ -1,9 +1,10 @@
-import type { RoomView, ScreenView } from "@tng/shared";
+import type { GameView, RoomView, ScreenView } from "@tng/shared";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 
 import Home from "../app/index";
 import Privacy from "../app/privacy";
 import { Lobby } from "../components/Lobby";
+import { Over } from "../components/Over";
 import { Play } from "../components/Play";
 import { Reveal } from "../components/Reveal";
 import { TvView } from "../components/Tv";
@@ -38,14 +39,36 @@ function room(overrides: Partial<RoomView> = {}): RoomView {
     settings: { reminders: 1, revealSeconds: null },
     hostId: "p1",
     players: [
-      { id: "p1", displayName: "Sam", connected: true, submitted: true },
-      { id: "p2", displayName: "Alex", connected: true, submitted: true },
-      { id: "p3", displayName: "Jo", connected: true, submitted: false },
+      {
+        id: "p1",
+        displayName: "Sam",
+        connected: true,
+        submitted: true,
+        team: null,
+        name: null,
+      },
+      {
+        id: "p2",
+        displayName: "Alex",
+        connected: true,
+        submitted: true,
+        team: null,
+        name: null,
+      },
+      {
+        id: "p3",
+        displayName: "Jo",
+        connected: true,
+        submitted: false,
+        team: null,
+        name: null,
+      },
     ],
     you: { playerId: "p1", submittedName: "Cher" },
     remindersLeft: 1,
     reveal: null,
     tv: false,
+    game: null,
     ...overrides,
   };
 }
@@ -189,6 +212,17 @@ describe("Lobby", () => {
     });
   });
 
+  it("lets the host rearrange seats", async () => {
+    await render(<Lobby room={room()} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Move Jo up" }));
+    expect(mockGame.send).toHaveBeenCalledWith({
+      type: "moveSeat",
+      playerId: "p3",
+      to: 1,
+    });
+    expect(screen.getByRole("button", { name: "Move Sam up" })).toBeDisabled();
+  });
+
   it("lets the host set the reveal's pace", async () => {
     await render(<Lobby room={room()} />);
     await fireEvent.press(screen.getByRole("button", { name: "8 s" }));
@@ -297,6 +331,7 @@ describe("TV", () => {
     players: [],
     remindersLeft: 1,
     reveal: null,
+    game: null,
     ...overrides,
   });
 
@@ -337,12 +372,37 @@ describe("TV", () => {
     expect(screen.getByText("Prince")).toBeTruthy();
   });
 
-  it("offers a new game once play starts", async () => {
-    const onNewGame = jest.fn();
+  it("shows the teams and whose turn it is", async () => {
+    const players = room().players.map((p, i) => ({
+      ...p,
+      team: i < 2 ? "p1" : "p3",
+    }));
+    players[1] = { ...players[1]!, name: "Prince" };
+    const game = {
+      turn: "p3",
+      pending: { by: "p3", team: "p3", target: "p1" },
+      winners: null,
+      canUndo: false,
+    };
     await render(
       <TvView
         status="open"
-        screen={tvScreen({ phase: "play" })}
+        screen={tvScreen({ phase: "play", players, game })}
+        onNewGame={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("Jo’s team’s turn")).toBeTruthy();
+    expect(screen.getByText(/Jo is guessing Sam/)).toBeTruthy();
+    expect(screen.getByText("Prince")).toBeTruthy();
+  });
+
+  it("offers a new game once it's over", async () => {
+    const onNewGame = jest.fn();
+    const game = { turn: "p1", pending: null, winners: [], canUndo: false };
+    await render(
+      <TvView
+        status="open"
+        screen={tvScreen({ phase: "over", game })}
         onNewGame={onNewGame}
       />,
     );
@@ -354,18 +414,155 @@ describe("TV", () => {
 });
 
 describe("Play", () => {
-  it("lets the host use a reminder", async () => {
-    await render(<Play room={room({ phase: "play" })} />);
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Read the names again" }),
+  // Sam (host) has caught Alex, whose name is public now; Jo is a team of one.
+  // It's Sam's team's turn.
+  function playing(
+    overrides: Partial<RoomView> = {},
+    game: Partial<GameView> = {},
+  ): RoomView {
+    const base = room();
+    return room({
+      phase: "play",
+      players: [
+        { ...base.players[0]!, team: "p1" },
+        { ...base.players[1]!, team: "p1", name: "Prince" },
+        { ...base.players[2]!, team: "p3", submitted: true },
+      ],
+      game: {
+        turn: "p1",
+        pending: null,
+        winners: null,
+        canUndo: false,
+        ...game,
+      },
+      ...overrides,
+    });
+  }
+
+  it("shows the teams, with names public once guessed", async () => {
+    await render(
+      <Play
+        room={playing({ you: { playerId: "p3", submittedName: "Madonna" } })}
+      />,
     );
-    expect(mockGame.send).toHaveBeenCalledWith({ type: "remind" });
+    expect(screen.getByText("Sam’s team’s turn")).toBeTruthy();
+    expect(screen.getByText("Prince")).toBeTruthy();
+    expect(screen.getByText("Madonna")).toBeTruthy();
+    expect(screen.queryByText("Cher")).toBeNull();
   });
 
-  it("disables reminders once they're used up", async () => {
-    await render(<Play room={room({ phase: "play", remindersLeft: 0 })} />);
+  it("lets your team guess another team's leader on its turn", async () => {
+    await render(
+      <Play
+        room={playing({ you: { playerId: "p2", submittedName: "Prince" } })}
+      />,
+    );
+    expect(screen.getByText("Your team’s turn")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Guess Jo" }));
+    expect(mockGame.send).toHaveBeenCalledWith({
+      type: "guess",
+      playerId: "p3",
+    });
+  });
+
+  it("offers no guesses off your turn", async () => {
+    await render(
+      <Play
+        room={playing({ you: { playerId: "p3", submittedName: "Madonna" } })}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Guess / })).toBeNull();
+  });
+
+  it("asks the guessed player to answer", async () => {
+    const pending = { by: "p2", team: "p1", target: "p3" };
+    await render(
+      <Play
+        room={playing(
+          { you: { playerId: "p3", submittedName: "Madonna" } },
+          { pending },
+        )}
+      />,
+    );
     expect(
-      screen.getByRole("button", { name: "No reminders left" }),
-    ).toBeDisabled();
+      screen.getByText("Alex is guessing your name. Did they get it?"),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "They got me" }));
+    expect(mockGame.send).toHaveBeenCalledWith({
+      type: "answerGuess",
+      correct: true,
+    });
+  });
+
+  it("lets the host answer for the guessed player", async () => {
+    const pending = { by: "p2", team: "p1", target: "p3" };
+    await render(<Play room={playing({}, { pending })} />);
+    expect(screen.getByText("Answer for Jo if they can’t.")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Wrong" }));
+    expect(mockGame.send).toHaveBeenCalledWith({
+      type: "answerGuess",
+      correct: false,
+    });
+  });
+
+  it("lets the host use a reminder, then end the round once none are left", async () => {
+    await render(<Play room={playing()} />);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Read the names again (1 left)" }),
+    );
+    expect(mockGame.send).toHaveBeenCalledWith({ type: "remind" });
+
+    await render(<Play room={playing({ remindersLeft: 0 })} />);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "End the round" }),
+    );
+    await fireEvent.press(
+      screen.getByRole("button", { name: "End it? The biggest team wins" }),
+    );
+    expect(mockGame.send).toHaveBeenCalledWith({ type: "endRound" });
+  });
+
+  it("lets the host undo the last answer", async () => {
+    await render(<Play room={playing({}, { canUndo: true })} />);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Undo last answer" }),
+    );
+    expect(mockGame.send).toHaveBeenCalledWith({ type: "undo" });
+  });
+});
+
+describe("Over", () => {
+  function over(winners: string[], you = "p1"): RoomView {
+    const base = room();
+    return room({
+      phase: "over",
+      you: { playerId: you, submittedName: null },
+      players: [
+        { ...base.players[0]!, team: "p1", name: "Cher" },
+        { ...base.players[1]!, team: "p1", name: "Prince" },
+        { ...base.players[2]!, team: "p3", name: "Madonna" },
+      ],
+      game: { turn: "p1", pending: null, winners, canUndo: true },
+    });
+  }
+
+  it("names the winners and shows who wrote what", async () => {
+    await render(<Over room={over(["p1"])} />);
+    expect(screen.getByText("Sam’s team wins")).toBeTruthy();
+    expect(screen.getByText("Sam, Alex")).toBeTruthy();
+    expect(screen.getByText("Madonna")).toBeTruthy();
+  });
+
+  it("calls a tie", async () => {
+    await render(<Over room={over(["p1", "p3"])} />);
+    expect(screen.getByText("It’s a tie")).toBeTruthy();
+  });
+
+  it("lets the host play again with everyone", async () => {
+    await render(<Over room={over(["p1"])} />);
+    await fireEvent.press(screen.getByRole("button", { name: "Play again" }));
+    expect(mockGame.send).toHaveBeenCalledWith({ type: "playAgain" });
+    await render(<Over room={over(["p1"], "p2")} />);
+    expect(screen.queryByRole("button", { name: "Play again" })).toBeNull();
   });
 });

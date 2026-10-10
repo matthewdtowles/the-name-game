@@ -1,31 +1,31 @@
 import type { RoomView } from "@tng/shared";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, space, type } from "../lib/theme";
 import { ConfirmButton } from "./ConfirmButton";
 
-// In seat order. During the lobby each row says whether that player's name is
-// in; the name itself is never shown.
+// The lobby's players in seat order, which is the order teams take turns. Each
+// row says whether that player's name is in; the name itself is never shown.
+// The host can move players to match where everyone is sitting.
 export function PlayerList({
   room,
-  showSubmitted,
   onRemove,
+  onMove,
 }: {
   room: RoomView;
-  showSubmitted: boolean;
   onRemove?: (playerId: string) => void;
+  onMove?: (playerId: string, to: number) => void;
 }) {
+  const last = room.players.length - 1;
   return (
     <View style={styles.list}>
-      {room.players.map((player) => {
+      {room.players.map((player, seat) => {
         const isYou = player.id === room.you.playerId;
         const status = !player.connected
           ? "away"
-          : showSubmitted
-            ? player.submitted
-              ? "name in"
-              : "writing"
-            : null;
+          : player.submitted
+            ? "name in"
+            : "writing";
         return (
           <View key={player.id} style={styles.row}>
             <View style={styles.who}>
@@ -36,14 +36,26 @@ export function PlayerList({
                   <Text style={styles.aside}> hosting</Text>
                 ) : null}
               </Text>
-              {status ? (
-                <Text
-                  style={[styles.status, status === "name in" && styles.in]}
-                >
-                  {status === "name in" ? "✓ name in" : status}
-                </Text>
-              ) : null}
+              <Text style={[styles.status, status === "name in" && styles.in]}>
+                {status === "name in" ? "✓ name in" : status}
+              </Text>
             </View>
+            {onMove ? (
+              <>
+                <Arrow
+                  label={`Move ${player.displayName} up`}
+                  symbol="↑"
+                  disabled={seat === 0}
+                  onPress={() => onMove(player.id, seat - 1)}
+                />
+                <Arrow
+                  label={`Move ${player.displayName} down`}
+                  symbol="↓"
+                  disabled={seat === last}
+                  onPress={() => onMove(player.id, seat + 1)}
+                />
+              </>
+            ) : null}
             {onRemove && !isYou ? (
               <ConfirmButton
                 label="Remove"
@@ -55,6 +67,26 @@ export function PlayerList({
         );
       })}
     </View>
+  );
+}
+
+function Arrow(props: {
+  label: string;
+  symbol: string;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={props.label}
+      accessibilityState={{ disabled: props.disabled }}
+      disabled={props.disabled}
+      onPress={props.onPress}
+      style={[styles.arrow, props.disabled && styles.arrowDisabled]}
+    >
+      <Text style={styles.arrowText}>{props.symbol}</Text>
+    </Pressable>
   );
 }
 
@@ -75,4 +107,12 @@ const styles = StyleSheet.create({
   aside: { ...type.small, color: colors.dusk },
   status: { ...type.small, color: colors.dusk },
   in: { color: colors.felt },
+  arrow: {
+    width: 40,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  arrowDisabled: { opacity: 0.25 },
+  arrowText: { ...type.strong, color: colors.paper },
 });

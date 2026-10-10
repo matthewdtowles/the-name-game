@@ -34,9 +34,10 @@ export const SessionToken = z.string().min(1).max(128);
 // Paid tiers join this enum later; the server enforces each tier's limits.
 export const Tier = z.enum(["free"]);
 
-// lobby: players join and submit names. reveal: the host is shown the shuffled
-// names to read out. play: names are hidden; a reminder returns to reveal.
-export const Phase = z.enum(["lobby", "reveal", "play"]);
+// lobby: players join and submit names. reveal: the names are shown, shuffled.
+// play: teams take turns guessing; a reminder returns to reveal. over: a team
+// won (or the round was ended) and everyone sees who wrote what.
+export const Phase = z.enum(["lobby", "reveal", "play", "over"]);
 
 export const Settings = z.object({
   reminders: z.int().min(0).max(MAX_REMINDERS),
@@ -72,6 +73,23 @@ export const ClientMessage = z.discriminatedUnion("type", [
   // skip one. `all` shows every slip at once.
   z.object({ type: z.literal("revealTo"), index: z.int().min(0) }),
   z.object({ type: z.literal("revealAll"), all: z.boolean() }),
+  // Host, in the lobby: move a player to another seat (0 is first).
+  z.object({
+    type: z.literal("moveSeat"),
+    playerId: PlayerId,
+    to: z.int().min(0),
+  }),
+  // A member of the team whose turn it is names the leader they're guessing.
+  z.object({ type: z.literal("guess"), playerId: PlayerId }),
+  // The guessed player (or the host for them) says whether it was right.
+  z.object({ type: z.literal("answerGuess"), correct: z.boolean() }),
+  z.object({ type: z.literal("cancelGuess") }),
+  // Host: end the round once no reminders are left; the largest team wins.
+  z.object({ type: z.literal("endRound") }),
+  // Host: take back the last answer or ending.
+  z.object({ type: z.literal("undo") }),
+  // Host: a new game with the same players and seats.
+  z.object({ type: z.literal("playAgain") }),
   // A TV attaching as a display: to a new room when there's no code (the first
   // phone to join hosts it), or back to its room after a reload.
   z.object({ type: z.literal("display"), code: RoomCode.optional() }),
@@ -93,6 +111,12 @@ export const ErrorReason = z.enum([
   "wrong_phase",
   "not_enough_names",
   "no_reminders_left",
+  "not_your_turn",
+  "invalid_target",
+  "guess_pending",
+  "no_guess_pending",
+  "reminders_left",
+  "nothing_to_undo",
 ]);
 
 export const PlayerView = z.object({
@@ -100,6 +124,21 @@ export const PlayerView = z.object({
   displayName: DisplayName,
   connected: z.boolean(),
   submitted: z.boolean(),
+  // The leader of this player's team once the game starts; null for players
+  // who put no name in and only watch.
+  team: PlayerId.nullable(),
+  // Their name once it's public: guessed out loud, or after the game.
+  name: SecretName.nullable(),
+});
+
+// The guessing game, from the first reveal on. Teams are known by their leader.
+export const GameView = z.object({
+  turn: PlayerId,
+  pending: z
+    .object({ by: PlayerId, team: PlayerId, target: PlayerId })
+    .nullable(),
+  winners: z.array(PlayerId).nullable(),
+  canUndo: z.boolean(),
 });
 
 // Where the reveal is. `names` is the shuffled list, sent only to the host and
@@ -128,6 +167,7 @@ export const RoomView = z.object({
   reveal: RevealView.nullable(),
   // A TV is showing the game, so the reveal happens there.
   tv: z.boolean(),
+  game: GameView.nullable(),
 });
 
 // What a TV shows. During the reveal, `slips` holds only what's on screen: the
@@ -145,6 +185,7 @@ export const ScreenView = z.object({
       slips: z.array(SecretName),
     })
     .nullable(),
+  game: GameView.nullable(),
 });
 
 export const ServerMessage = z.discriminatedUnion("type", [
@@ -175,6 +216,7 @@ export type Settings = z.infer<typeof Settings>;
 export type ClientMessage = z.infer<typeof ClientMessage>;
 export type ErrorReason = z.infer<typeof ErrorReason>;
 export type PlayerView = z.infer<typeof PlayerView>;
+export type GameView = z.infer<typeof GameView>;
 export type RoomView = z.infer<typeof RoomView>;
 export type RevealView = z.infer<typeof RevealView>;
 export type ScreenView = z.infer<typeof ScreenView>;

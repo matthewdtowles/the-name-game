@@ -45,12 +45,20 @@ const room: RoomView = {
   settings: { reminders: 1, revealSeconds: null },
   hostId: "p1",
   players: [
-    { id: "p1", displayName: "Sam", connected: true, submitted: false },
+    {
+      id: "p1",
+      displayName: "Sam",
+      connected: true,
+      submitted: false,
+      team: null,
+      name: null,
+    },
   ],
   you: { playerId: "p1", submittedName: null },
   remindersLeft: 1,
   reveal: null,
   tv: false,
+  game: null,
 };
 
 let stored: Session | null;

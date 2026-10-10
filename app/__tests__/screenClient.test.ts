@@ -36,6 +36,7 @@ const screen: ScreenView = {
   players: [],
   remindersLeft: 1,
   reveal: null,
+  game: null,
 };
 
 let stored: string | null;

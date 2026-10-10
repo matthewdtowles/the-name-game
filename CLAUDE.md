@@ -58,6 +58,8 @@ then prod the same way. Deploy by hand only to try something on staging; after
 - **The rules engine is pure:** no I/O, no clock, no `Math.random`. The server
   supplies ids, tokens, and a crypto-backed random source, so tests can pass a
   deterministic one.
+- **The guessing game is `Room.game`.** Teams are keyed by leader id (the one
+  member whose name is unguessed); the host's undo pops `Room.history`.
 - **Adding an intent:** add the schema to `ClientMessage`, the `Action` and its
   rule in `game.ts`, the mapping in `handler.ts`'s `toAction`, and tests at
   both layers.
