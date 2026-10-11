@@ -33,6 +33,7 @@ npm test -w @tng/shared     # one workspace
 
 npm run smoke -w @tng/server -- wss://...   # play a game against a server
 cd infra && AWS_PROFILE=the-name-game npx cdk deploy TheNameGameStagingBackend
+infra/usage.sh Prod 30      # games and players per day
 ```
 
 The iOS and Android apps build on EAS (`app/eas.json`): `preview` builds talk to
@@ -69,6 +70,13 @@ then prod the same way. Deploy by hand only to try something on staging; after
 - **Adding an intent:** add the schema to `ClientMessage`, the `Action` and its
   rule in `game.ts`, the mapping in `handler.ts`'s `toAction`, and tests at
   both layers.
+- **Limits and usage live in the same table.** Creating, joining, or opening a
+  room on a TV counts against the caller's address (`LIMIT#` items, 60 per 10
+  minutes), so room codes can't be guessed at speed; each connection is also
+  held to 30 messages per 10 seconds in memory. Usage is aggregate daily
+  counters (`STATS#<day>`), never anything about who played. Prod alarms on
+  Lambda errors, throttles, and message surges email whoever
+  `infra/setup/setup.sh alerts` subscribed.
 - **Rooms are written optimistically.** `mutate` re-reads and retries when the
   version moved. A room that empties is deleted.
 

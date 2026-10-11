@@ -9,7 +9,13 @@ import type {
 } from "aws-lambda";
 
 import { DynamoStore } from "./dynamoStore";
-import { handleDisconnect, handleMessage, type Deps } from "./handler";
+import {
+  handleDisconnect,
+  handleMessage,
+  MESSAGE_WINDOW_MS,
+  type Deps,
+} from "./handler";
+import { MessageLimiter } from "./limiter";
 
 // The API Gateway WebSocket entry point: the same handler as the dev server,
 // with DynamoDB for state and the management API for pushing to sockets.
@@ -20,6 +26,7 @@ const connections = new ApiGatewayManagementApiClient({
 
 const deps: Deps = {
   store: new DynamoStore(requireEnv("TABLE_NAME")),
+  limiter: new MessageLimiter(MESSAGE_WINDOW_MS),
   send: async (connectionId, message) => {
     try {
       await connections.send(
@@ -39,9 +46,18 @@ export async function handler(
   event: APIGatewayProxyWebsocketEventV2,
 ): Promise<APIGatewayProxyResultV2> {
   const { connectionId, routeKey } = event.requestContext;
+  // WebSocket events carry the caller's address, though the types omit it.
+  const { identity } = event.requestContext as {
+    identity?: { sourceIp?: string };
+  };
   if (routeKey === "$disconnect") await handleDisconnect(deps, connectionId);
   else if (routeKey !== "$connect")
-    await handleMessage(deps, connectionId, event.body ?? "");
+    await handleMessage(
+      deps,
+      connectionId,
+      event.body ?? "",
+      identity?.sourceIp ?? connectionId,
+    );
   return { statusCode: 200 };
 }
 

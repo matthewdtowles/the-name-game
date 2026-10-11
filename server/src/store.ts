@@ -25,7 +25,15 @@ export interface Store {
   getBinding(connectionId: string): Promise<Binding | null>;
   putBinding(connectionId: string, binding: Binding): Promise<void>;
   deleteBinding(connectionId: string): Promise<void>;
+  // Counts one more event under `key` in the current fixed window and returns
+  // the count so far; each window's counter expires on its own.
+  hit(key: string, windowSeconds: number): Promise<number>;
+  // Adds to today's usage counters. Aggregate only: nothing about who played.
+  tally(counts: Partial<Record<Tally, number>>): Promise<void>;
 }
+
+export type Tally =
+  "gamesCreated" | "gamesStarted" | "gamesFinished" | "players";
 
 // Delivers a message to one connection. A connection that has gone away is
 // ignored, not an error.

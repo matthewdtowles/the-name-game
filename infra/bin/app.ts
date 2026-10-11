@@ -23,6 +23,8 @@ for (const [stage, host] of [
     env,
     zone,
     domainName: `play.${host}`,
+    // Alarms cost $0.10 each a month; staging can go without.
+    alarms: stage === "Prod",
   });
   new WebStack(app, `TheNameGame${stage}Web`, { env, zone, domainName: host });
 }

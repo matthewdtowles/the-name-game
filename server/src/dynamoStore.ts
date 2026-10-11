@@ -7,14 +7,17 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 
-import type { Binding, RoomRecord, Store } from "./store";
+import type { Binding, RoomRecord, Store, Tally } from "./store";
 
 // One table, keyed by `pk`: ROOM#<code> holds a room and its connections,
 // CONN#<connectionId> says which room and player a socket speaks for. Every
 // write pushes `expiresAt` out a day, so DynamoDB's TTL deletes a game a day
-// after its last activity.
+// after its last activity. LIMIT#<key>#<window> counts events for rate limits
+// and expires with its window; STATS#<day> holds that day's usage counts and
+// is kept.
 
 const TTL_SECONDS = 24 * 60 * 60;
 
@@ -116,6 +119,38 @@ export class DynamoStore implements Store {
       new DeleteCommand({
         TableName: this.tableName,
         Key: { pk: connectionKey(connectionId) },
+      }),
+    );
+  }
+
+  async hit(key: string, windowSeconds: number): Promise<number> {
+    const window = Math.floor(this.now() / 1000 / windowSeconds);
+    const { Attributes } = await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { pk: `LIMIT#${key}#${window}` },
+        UpdateExpression: "ADD hits :one SET expiresAt = :expires",
+        ExpressionAttributeValues: {
+          ":one": 1,
+          ":expires": (window + 1) * windowSeconds,
+        },
+        ReturnValues: "UPDATED_NEW",
+      }),
+    );
+    return Attributes?.hits ?? 1;
+  }
+
+  async tally(counts: Partial<Record<Tally, number>>): Promise<void> {
+    const fields = Object.entries(counts).filter(([, n]) => n);
+    if (fields.length === 0) return;
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { pk: `STATS#${new Date(this.now()).toISOString().slice(0, 10)}` },
+        UpdateExpression: `ADD ${fields.map(([f]) => `${f} :${f}`).join(", ")}`,
+        ExpressionAttributeValues: Object.fromEntries(
+          fields.map(([f, n]) => [`:${f}`, n]),
+        ),
       }),
     );
   }

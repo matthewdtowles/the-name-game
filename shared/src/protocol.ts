@@ -117,6 +117,7 @@ export const ErrorReason = z.enum([
   "no_guess_pending",
   "reminders_left",
   "nothing_to_undo",
+  "slow_down",
 ]);
 
 export const PlayerView = z.object({
