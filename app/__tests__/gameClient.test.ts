@@ -42,7 +42,7 @@ const room: RoomView = {
   code: "WXYZ",
   phase: "lobby",
   tier: "free",
-  settings: { reminders: 1, revealSeconds: null },
+  settings: { reminders: 1, revealSeconds: null, turnSeconds: null },
   hostId: "p1",
   players: [
     {

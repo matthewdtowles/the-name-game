@@ -73,6 +73,7 @@ export function Lobby({ room }: { room: RoomView }) {
           <Text style={styles.heading}>Game settings</Text>
           <Reminders room={room} />
           <RevealPace room={room} />
+          <TurnClock room={room} />
         </View>
       ) : null}
       <View style={styles.section}>
@@ -316,6 +317,51 @@ function RevealPace({ room }: { room: RoomView }) {
                 style={[styles.chipText, selected && styles.chipTextSelected]}
               >
                 {pace === null ? "By hand" : `${pace} s`}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const TURN_CLOCKS = [null, 30, 60, 90] as const;
+
+function TurnClock({ room }: { room: RoomView }) {
+  const game = useGame();
+  const seconds = room.settings.turnSeconds;
+  return (
+    <View style={styles.pace}>
+      <Text style={styles.strong}>Turn timer</Text>
+      <Text style={styles.hint}>
+        {seconds === null
+          ? "Teams take as long as they like to guess."
+          : `Each team gets ${seconds} seconds to make a guess, or the turn passes.`}
+      </Text>
+      <View style={styles.chips}>
+        {TURN_CLOCKS.map((clock) => {
+          const selected = clock === seconds;
+          return (
+            <Pressable
+              key={clock ?? "off"}
+              accessibilityRole="button"
+              accessibilityLabel={
+                clock === null ? "No timer" : `${clock} seconds a guess`
+              }
+              accessibilityState={{ selected }}
+              onPress={() =>
+                game.send({
+                  type: "updateSettings",
+                  settings: { ...room.settings, turnSeconds: clock },
+                })
+              }
+              style={[styles.chip, selected && styles.chipSelected]}
+            >
+              <Text
+                style={[styles.chipText, selected && styles.chipTextSelected]}
+              >
+                {clock === null ? "Off" : `${clock} s`}
               </Text>
             </Pressable>
           );

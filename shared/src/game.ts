@@ -103,6 +103,7 @@ export type Action =
   | { type: "guess"; playerId: string; targetId: string }
   | { type: "answerGuess"; playerId: string; correct: boolean }
   | { type: "cancelGuess"; playerId: string }
+  | { type: "timeUp"; playerId: string; turn: string }
   | { type: "endRound"; playerId: string }
   | { type: "undo"; playerId: string }
   | { type: "playAgain"; playerId: string };
@@ -116,6 +117,7 @@ export type Random = () => number;
 export const DEFAULT_SETTINGS: Settings = {
   reminders: DEFAULT_REMINDERS,
   revealSeconds: null,
+  turnSeconds: null,
 };
 
 // A room starts with its host, or, when a TV creates it, with nobody yet.
@@ -331,6 +333,21 @@ export function apply(room: Room, action: Action, random: Random): Result {
       return ok({ ...room, game: { ...game, pending: null } });
     }
 
+    case "timeUp": {
+      if (!isHost) return fail("not_host");
+      const game = room.game;
+      if (room.phase !== "play" || !game || !room.settings.turnSeconds)
+        return fail("wrong_phase");
+      // The host's clock can run out just as a guess is made or the turn moves
+      // on; the turn already changed hands, so there's nothing to do.
+      if (game.pending || game.turn !== action.turn) return ok(room);
+      return ok({
+        ...room,
+        history: remember(room, game),
+        game: { ...game, turn: nextTurn(room, game, game.turn) },
+      });
+    }
+
     case "endRound": {
       if (!isHost) return fail("not_host");
       const game = room.game;
@@ -426,6 +443,7 @@ export function screenFor(room: Room): ScreenView {
     hostId: room.hostId,
     players: playerViews(room),
     remindersLeft: room.remindersLeft,
+    turnSeconds: room.settings.turnSeconds ?? null,
     reveal: revealing
       ? {
           index: revealing.index,
