@@ -13,7 +13,8 @@ import {
   type Random,
 } from "@tng/shared";
 
-import type { RoomRecord, Send, Store } from "./store";
+import type { MessageLimiter } from "./limiter";
+import type { RoomRecord, Send, Store, Tally } from "./store";
 
 // The transport-agnostic server: one entry point per socket event. The local
 // dev server and the Lambda adapter differ only in the Store and Send they pass.
@@ -21,6 +22,7 @@ import type { RoomRecord, Send, Store } from "./store";
 export interface Deps {
   store: Store;
   send: Send;
+  limiter?: MessageLimiter;
 }
 
 const MESSAGES: Record<ErrorReason, string> = {
@@ -42,6 +44,7 @@ const MESSAGES: Record<ErrorReason, string> = {
   no_guess_pending: "There's no guess to answer.",
   reminders_left: "Use up the reminders before ending the round.",
   nothing_to_undo: "There's nothing to undo.",
+  slow_down: "That's a lot of tries. Wait a few minutes and try again.",
 };
 
 // crypto.randomInt's range must stay below 2^48.
@@ -49,11 +52,29 @@ const RANDOM_RANGE = 2 ** 48 - 1;
 const random: Random = () => randomInt(RANDOM_RANGE) / RANDOM_RANGE;
 const ATTEMPTS = 5;
 
+// Creating, joining, and opening a room on a TV, per address. A party on one
+// Wi-Fi network stays well under it; guessing room codes at this pace would
+// take weeks.
+const ENTRIES_PER_WINDOW = 60;
+const ENTRY_WINDOW_SECONDS = 10 * 60;
+// Messages per connection: far more than anyone taps, far less than a loop.
+export const MESSAGES_PER_WINDOW = 30;
+export const MESSAGE_WINDOW_MS = 10_000;
+
+// `source` is the client's address where the transport knows it.
 export async function handleMessage(
   deps: Deps,
   connectionId: string,
   raw: string,
+  source: string = connectionId,
 ): Promise<void> {
+  const sent = deps.limiter?.count(connectionId) ?? 0;
+  if (sent > MESSAGES_PER_WINDOW) {
+    // Say so once; answering every dropped message would be its own flood.
+    if (sent === MESSAGES_PER_WINDOW + 1)
+      await sendError(deps, connectionId, "slow_down");
+    return;
+  }
   const parsed = ClientMessage.safeParse(safeJson(raw));
   if (!parsed.success) return sendError(deps, connectionId, "invalid_message");
   const message = parsed.data;
@@ -62,6 +83,8 @@ export async function handleMessage(
 
   if (message.type === "display") {
     if (binding) return sendError(deps, connectionId, "invalid_message");
+    if (await tooManyEntries(deps, source))
+      return sendError(deps, connectionId, "slow_down");
     return watch(deps, connectionId, message.code);
   }
 
@@ -72,6 +95,8 @@ export async function handleMessage(
   ) {
     // One room per connection: leave the current game before entering another.
     if (binding) return sendError(deps, connectionId, "invalid_message");
+    if (message.type !== "resume" && (await tooManyEntries(deps, source)))
+      return sendError(deps, connectionId, "slow_down");
     return enter(deps, connectionId, message);
   }
 
@@ -102,6 +127,17 @@ export async function handleMessage(
     await deps.send(conn, { type: "removed" });
   }
   await broadcast(deps, outcome.next);
+
+  const before = outcome.prev.room.phase;
+  const after = outcome.next.room.phase;
+  if (before === "lobby" && after === "reveal") {
+    await tally(deps, {
+      gamesStarted: 1,
+      players: outcome.next.room.players.length,
+    });
+  } else if (before !== "over" && after === "over") {
+    await tally(deps, { gamesFinished: 1 });
+  }
 }
 
 export async function handleDisconnect(
@@ -159,6 +195,7 @@ async function enter(
     }));
     if (!created) throw new Error("Could not find a free room code");
     record = created;
+    await tally(deps, { gamesCreated: 1 });
   } else if (message.type === "join") {
     playerId = randomUUID();
     sessionToken = newToken();
@@ -245,6 +282,7 @@ async function watch(
     );
     if (!created) throw new Error("Could not find a free room code");
     record = created;
+    await tally(deps, { gamesCreated: 1 });
   } else {
     const outcome = await mutate(deps.store, code, (current) =>
       withDisplay(current, connectionId),
@@ -270,6 +308,23 @@ function withDisplay(record: RoomRecord, connectionId: string): RoomRecord {
     room: result.room,
     displays: [...record.displays, connectionId],
   };
+}
+
+async function tooManyEntries(deps: Deps, source: string): Promise<boolean> {
+  const count = await deps.store.hit(`entry:${source}`, ENTRY_WINDOW_SECONDS);
+  return count > ENTRIES_PER_WINDOW;
+}
+
+// Usage counts are nice to have: never let them fail a player's action.
+async function tally(
+  deps: Deps,
+  counts: Partial<Record<Tally, number>>,
+): Promise<void> {
+  try {
+    await deps.store.tally(counts);
+  } catch (error) {
+    console.error("Couldn't record usage", error);
+  }
 }
 
 // Builds a room under a fresh code, retrying on the rare collision.

@@ -4,15 +4,18 @@ import { beforeEach, describe, it } from "node:test";
 import type { ClientMessage, ServerMessage } from "@tng/shared";
 
 import { handleDisconnect, handleMessage, type Deps } from "./handler";
+import { MessageLimiter } from "./limiter";
 import { MemoryStore } from "./memoryStore";
 
 let deps: Deps;
+let store: MemoryStore;
 let inbox: Map<string, ServerMessage[]>;
 
 beforeEach(() => {
   inbox = new Map();
+  store = new MemoryStore();
   deps = {
-    store: new MemoryStore(),
+    store,
     send: async (connectionId, message) => {
       inbox.set(connectionId, [...(inbox.get(connectionId) ?? []), message]);
     },
@@ -276,5 +279,67 @@ describe("the guessing game", () => {
       room.players.map((p) => p.name),
       ["Cher", "Prince"],
     );
+  });
+});
+
+describe("limits", () => {
+  it("slows down an address that keeps trying room codes", async () => {
+    for (let i = 0; i < 60; i++) {
+      await handleMessage(
+        deps,
+        `c${i}`,
+        JSON.stringify({ type: "join", code: "ZZZZ", displayName: "Eve" }),
+        "203.0.113.9",
+      );
+      assert.equal(last(`c${i}`, "error").reason, "room_not_found");
+    }
+    await handleMessage(
+      deps,
+      "c60",
+      JSON.stringify({ type: "display", code: "ZZZZ" }),
+      "203.0.113.9",
+    );
+    assert.equal(last("c60", "error").reason, "slow_down");
+    // Someone else on another address is unaffected.
+    await handleMessage(
+      deps,
+      "c-other",
+      JSON.stringify({ type: "create", displayName: "Sam" }),
+      "198.51.100.4",
+    );
+    last("c-other", "welcome");
+  });
+
+  it("drops a flooding connection's messages and says so once", async () => {
+    deps.limiter = new MessageLimiter(10_000, () => 0);
+    await send("c1", { type: "create", displayName: "Sam" });
+    for (let i = 0; i < 40; i++) await send("c1", { type: "ping" });
+    const errors = inbox.get("c1")!.filter((m) => m.type === "error");
+    assert.deepEqual(
+      errors.map((m) => m.type === "error" && m.reason),
+      ["slow_down"],
+    );
+  });
+});
+
+describe("usage", () => {
+  it("counts games created, started, and finished, and their players", async () => {
+    await hostAndJoin();
+    await send("c-host", {
+      type: "updateSettings",
+      settings: { reminders: 0, revealSeconds: null },
+    });
+    await send("c-host", { type: "submitName", name: "Cher" });
+    await send("c-alex", { type: "submitName", name: "Prince" });
+    await send("c-host", { type: "startReveal" });
+    await send("c-host", { type: "finishReveal" });
+    await send("c-host", { type: "endRound" });
+    assert.equal(last("c-host", "room").room.phase, "over");
+    assert.deepEqual(store.tallies, {
+      gamesCreated: 1,
+      gamesStarted: 1,
+      players: 2,
+      gamesFinished: 1,
+    });
   });
 });

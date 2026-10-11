@@ -18,12 +18,21 @@ import {
   WebSocketStage,
 } from "aws-cdk-lib/aws-apigatewayv2";
 import { WebSocketLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import {
+  Alarm,
+  ComparisonOperator,
+  Metric,
+  TreatMissingData,
+  type IMetric,
+} from "aws-cdk-lib/aws-cloudwatch";
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
 import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
+import { Topic } from "aws-cdk-lib/aws-sns";
 import type { Construct } from "constructs";
 
 import type { Zone } from "./zone";
@@ -35,7 +44,7 @@ export class BackendStack extends Stack {
   constructor(
     scope: Construct,
     id: string,
-    props: StackProps & { domainName: string; zone: Zone },
+    props: StackProps & { domainName: string; zone: Zone; alarms: boolean },
   ) {
     super(scope, id, props);
 
@@ -105,5 +114,54 @@ export class BackendStack extends Stack {
 
     new CfnOutput(this, "WebSocketUrl", { value: `wss://${props.domainName}` });
     new CfnOutput(this, "ApiEndpoint", { value: stage.url });
+    new CfnOutput(this, "TableName", { value: table.tableName });
+
+    if (!props.alarms) return;
+    // Alarms email whoever infra/setup subscribes to this topic, which keeps
+    // the address out of the repo and CI.
+    const topic = new Topic(this, "Alarms");
+    const alarm = (
+      id: string,
+      metric: IMetric,
+      threshold: number,
+      about: string,
+    ) =>
+      new Alarm(this, id, {
+        metric,
+        threshold,
+        evaluationPeriods: 1,
+        comparisonOperator:
+          ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+        alarmDescription: about,
+      }).addAlarmAction(new SnsAction(topic));
+    const fiveMinutes = { period: Duration.minutes(5), statistic: "Sum" };
+    alarm(
+      "HandlerErrors",
+      handler.metricErrors(fiveMinutes),
+      1,
+      "The game server failed on a message; its logs say why.",
+    );
+    alarm(
+      "HandlerThrottles",
+      handler.metricThrottles(fiveMinutes),
+      1,
+      "Lambda turned messages away: the account's concurrency ran out.",
+    );
+    // A busy night of parties sends a few thousand messages an hour; this many
+    // is a hit, or someone hammering the API at the stage throttle.
+    alarm(
+      "MessageSurge",
+      new Metric({
+        namespace: "AWS/ApiGateway",
+        metricName: "MessageCount",
+        dimensionsMap: { ApiId: api.apiId, Stage: stage.stageName },
+        period: Duration.hours(1),
+        statistic: "Sum",
+      }),
+      50_000,
+      "Far more WebSocket messages than usual in the last hour.",
+    );
+    new CfnOutput(this, "AlarmTopicArn", { value: topic.topicArn });
   }
 }

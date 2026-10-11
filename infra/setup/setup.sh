@@ -12,6 +12,8 @@
 #                   whole account)
 #   github-role     tng-github-deploy: CI on main of this repo, same limits
 #   budget          $5/month on the project=the-name-game cost tag
+#   alerts          emails ALERT_EMAIL when a prod alarm fires; run it after
+#                   TheNameGameProdBackend is deployed, so it isn't in `all`
 #
 # Every step is idempotent. Run one with `./setup.sh <step>`, or `./setup.sh all`.
 # Policy files say ACCOUNT_ID; the account comes from the active profile.
@@ -154,6 +156,25 @@ budget() {
   fi
 }
 
+alerts() {
+  : "${ALERT_EMAIL:?Set ALERT_EMAIL to the address that gets alarm emails}"
+  local topic
+  topic=$(aws cloudformation describe-stacks --stack-name TheNameGameProdBackend \
+    --query "Stacks[0].Outputs[?OutputKey=='AlarmTopicArn'].OutputValue" --output text)
+  if [ -z "$topic" ] || [ "$topic" = None ]; then
+    echo "TheNameGameProdBackend has no alarm topic yet; deploy it first" >&2
+    exit 1
+  fi
+  if aws sns list-subscriptions-by-topic --topic-arn "$topic" \
+    --query 'Subscriptions[].Endpoint' --output text | tr '\t' '\n' | grep -qxF "$ALERT_EMAIL"; then
+    echo "$ALERT_EMAIL already gets alarms"
+  else
+    aws sns subscribe --topic-arn "$topic" --protocol email \
+      --notification-endpoint "$ALERT_EMAIL" >/dev/null
+    echo "Subscribed $ALERT_EMAIL; confirm with the link in the email from AWS"
+  fi
+}
+
 case "${1:-}" in
   exec-policy) exec_policy ;;
   service-roles) service_roles ;;
@@ -161,6 +182,7 @@ case "${1:-}" in
   permission-set) permission_set ;;
   github-role) github_role ;;
   budget) budget ;;
+  alerts) alerts ;;
   all) exec_policy; service_roles; bootstrap; permission_set; github_role; budget ;;
-  *) echo "Usage: $0 exec-policy|service-roles|bootstrap|permission-set|github-role|budget|all" >&2; exit 64 ;;
+  *) echo "Usage: $0 exec-policy|service-roles|bootstrap|permission-set|github-role|budget|alerts|all" >&2; exit 64 ;;
 esac

@@ -1,10 +1,14 @@
-import type { Binding, RoomRecord, Store } from "./store";
+import type { Binding, RoomRecord, Store, Tally } from "./store";
 
 // For local dev and tests. Copies on the way in and out, like a real database,
 // so callers can't mutate stored state by accident.
 export class MemoryStore implements Store {
   private rooms = new Map<string, RoomRecord>();
   private bindings = new Map<string, Binding>();
+  private hits = new Map<string, number>();
+  readonly tallies: Partial<Record<Tally, number>> = {};
+
+  constructor(private readonly now: () => number = Date.now) {}
 
   async getRoom(code: string) {
     const record = this.rooms.get(code);
@@ -33,5 +37,18 @@ export class MemoryStore implements Store {
 
   async deleteBinding(connectionId: string) {
     this.bindings.delete(connectionId);
+  }
+
+  async hit(key: string, windowSeconds: number) {
+    const window = Math.floor(this.now() / 1000 / windowSeconds);
+    const id = `${key}#${window}`;
+    const count = (this.hits.get(id) ?? 0) + 1;
+    this.hits.set(id, count);
+    return count;
+  }
+
+  async tally(counts: Partial<Record<Tally, number>>) {
+    for (const [field, n] of Object.entries(counts) as [Tally, number][])
+      this.tallies[field] = (this.tallies[field] ?? 0) + n;
   }
 }

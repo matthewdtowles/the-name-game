@@ -67,6 +67,17 @@
           "aws:ResourceTag/project": "the-name-game"
         }
       }
+    },
+    {
+      "Sid": "ReadUsageCounts",
+      "Effect": "Allow",
+      "Action": ["dynamodb:BatchGetItem", "dynamodb:GetItem"],
+      "Resource": "arn:aws:dynamodb:*:ACCOUNT_ID:table/TheNameGame*",
+      "Condition": {
+        "ForAllValues:StringLike": {
+          "dynamodb:LeadingKeys": ["STATS#*"]
+        }
+      }
     }
   ]
 }

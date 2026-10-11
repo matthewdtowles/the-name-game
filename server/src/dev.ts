@@ -2,17 +2,25 @@ import { randomUUID } from "node:crypto";
 
 import { WebSocket, WebSocketServer } from "ws";
 
-import { handleDisconnect, handleMessage, type Deps } from "./handler";
+import {
+  handleDisconnect,
+  handleMessage,
+  MESSAGE_WINDOW_MS,
+  type Deps,
+} from "./handler";
+import { MessageLimiter } from "./limiter";
 import { MemoryStore } from "./memoryStore";
 
 // The game server on localhost: the same handler the Lambda runs, over a plain
-// WebSocket with rooms in memory. Restarting it ends every game.
+// WebSocket with rooms in memory. Restarting it ends every game. Entries aren't
+// limited by address here, since every local player shares one.
 
 const port = Number(process.env.PORT ?? 8787);
 const sockets = new Map<string, WebSocket>();
 
 const deps: Deps = {
   store: new MemoryStore(),
+  limiter: new MessageLimiter(MESSAGE_WINDOW_MS),
   send: async (connectionId, message) => {
     const socket = sockets.get(connectionId);
     if (socket?.readyState === WebSocket.OPEN)

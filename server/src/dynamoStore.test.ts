@@ -9,6 +9,7 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { createRoom } from "@tng/shared";
 import { mockClient } from "aws-sdk-client-mock";
@@ -95,5 +96,32 @@ describe("DynamoStore", () => {
     ddb.on(GetCommand).resolves({});
     assert.equal(await store.getRoom("ZZZZ"), null);
     assert.equal(await store.getBinding("nope"), null);
+  });
+
+  it("counts hits per window and expires each window's counter", async () => {
+    ddb.on(UpdateCommand).resolves({ Attributes: { hits: 3 } });
+    assert.equal(await store.hit("entry:1.2.3.4", 600), 3);
+    const input = ddb.commandCalls(UpdateCommand)[0]!.args[0].input;
+    const window = Math.floor(NOW / 1000 / 600);
+    assert.deepEqual(input.Key, { pk: `LIMIT#entry:1.2.3.4#${window}` });
+    assert.equal(
+      input.ExpressionAttributeValues?.[":expires"],
+      (window + 1) * 600,
+    );
+  });
+
+  it("adds usage to the day's counters and keeps them", async () => {
+    ddb.on(UpdateCommand).resolves({});
+    await store.tally({ gamesStarted: 1, players: 5 });
+    const input = ddb.commandCalls(UpdateCommand)[0]!.args[0].input;
+    assert.deepEqual(input.Key, { pk: "STATS#2023-11-14" });
+    assert.equal(
+      input.UpdateExpression,
+      "ADD gamesStarted :gamesStarted, players :players",
+    );
+    assert.deepEqual(input.ExpressionAttributeValues, {
+      ":gamesStarted": 1,
+      ":players": 5,
+    });
   });
 });
