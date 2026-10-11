@@ -36,6 +36,7 @@ const screen: ScreenView = {
   players: [],
   remindersLeft: 1,
   turnSeconds: null,
+  prompt: null,
   reveal: null,
   game: null,
 };

@@ -247,13 +247,23 @@ describe("settings", () => {
     const room = must(lobby("Sam"), {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders: 3, revealSeconds: null, turnSeconds: null },
+      settings: {
+        reminders: 3,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: null,
+      },
     });
     assert.equal(room.remindersLeft, 3);
   });
 
   it("is host-only and lobby-only", () => {
-    const settings = { reminders: 0, revealSeconds: null, turnSeconds: null };
+    const settings = {
+      reminders: 0,
+      revealSeconds: null,
+      turnSeconds: null,
+      prompt: null,
+    };
     assert.equal(
       reason(lobby("Sam", "Alex"), {
         type: "updateSettings",
@@ -328,7 +338,12 @@ describe("reminders", () => {
     room = must(room, {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders, revealSeconds: null, turnSeconds: null },
+      settings: {
+        reminders,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: null,
+      },
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
     return must(room, { type: "finishReveal", playerId: "p0" });
@@ -576,7 +591,7 @@ describe("the guessing game", () => {
     room = must(room, {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders, revealSeconds: null, turnSeconds },
+      settings: { reminders, revealSeconds: null, turnSeconds, prompt: null },
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
     return must(room, { type: "finishReveal", playerId: "p0" });
