@@ -30,7 +30,9 @@ export default function Scan() {
     return (
       <Screen footer={back}>
         <View style={styles.intro}>
-          <Text style={styles.title}>Scan to join</Text>
+          <Text accessibilityRole="header" style={styles.title}>
+            Scan to join
+          </Text>
           <Text style={styles.body}>
             {permission.canAskAgain
               ? "Point your camera at the code on the host’s phone or the TV."
@@ -52,7 +54,9 @@ export default function Scan() {
   return (
     <Screen footer={back}>
       <View style={styles.intro}>
-        <Text style={styles.title}>Scan to join</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          Scan to join
+        </Text>
         <Text style={styles.body}>
           Point your camera at the code on the host’s phone or the TV.
         </Text>

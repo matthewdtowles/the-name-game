@@ -1,5 +1,6 @@
 import type { GameView, RoomView, ScreenView } from "@tng/shared";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { AccessibilityInfo } from "react-native";
 
 import Home from "../app/index";
 import Privacy from "../app/privacy";
@@ -259,7 +260,9 @@ describe("Lobby", () => {
 
   it("lets the host set the reveal's pace", async () => {
     await render(<Lobby room={room()} />);
-    await fireEvent.press(screen.getByRole("button", { name: "8 s" }));
+    await fireEvent.press(
+      screen.getByRole("button", { name: "8 seconds each" }),
+    );
     expect(mockGame.send).toHaveBeenCalledWith({
       type: "updateSettings",
       settings: { reminders: 1, revealSeconds: 8 },
@@ -598,5 +601,62 @@ describe("Over", () => {
     expect(mockGame.send).toHaveBeenCalledWith({ type: "playAgain" });
     await render(<Over room={over(["p1"], "p2")} />);
     expect(screen.queryByRole("button", { name: "Play again" })).toBeNull();
+  });
+});
+
+describe("screen readers", () => {
+  const announce = jest
+    .spyOn(AccessibilityInfo, "announceForAccessibility")
+    .mockImplementation(() => {});
+  beforeEach(() => announce.mockClear());
+
+  it("spells out the room code", async () => {
+    await render(<Lobby room={room()} />);
+    expect(screen.getByRole("button", { name: "Code W X Y Z" })).toBeTruthy();
+  });
+
+  it("reads each player as one line, with their name once it's public", async () => {
+    const base = room();
+    await render(
+      <Play
+        room={room({
+          phase: "play",
+          you: { playerId: "p3", submittedName: "Madonna" },
+          players: [
+            { ...base.players[0]!, team: "p1" },
+            { ...base.players[1]!, team: "p1", name: "Prince" },
+            { ...base.players[2]!, team: "p3", connected: false },
+          ],
+          game: { turn: "p1", pending: null, winners: null, canUndo: false },
+        })}
+      />,
+    );
+    expect(screen.getByLabelText("Sam, name still secret")).toBeTruthy();
+    expect(screen.getByLabelText("Alex, wrote Prince")).toBeTruthy();
+    expect(screen.getByLabelText("Jo, you, away, wrote Madonna")).toBeTruthy();
+  });
+
+  it("announces your turn and a guess at your name", async () => {
+    const base = room();
+    const playing = (pending: GameView["pending"]) =>
+      room({
+        phase: "play",
+        you: { playerId: "p3", submittedName: "Madonna" },
+        players: [
+          { ...base.players[0]!, team: "p1" },
+          { ...base.players[1]!, team: "p1" },
+          { ...base.players[2]!, team: "p3" },
+        ],
+        game: { turn: "p3", pending, winners: null, canUndo: false },
+      });
+    await render(<Play room={playing(null)} />);
+    expect(announce).toHaveBeenCalledWith("Your team’s turn");
+
+    await screen.rerender(
+      <Play room={playing({ by: "p1", team: "p1", target: "p3" })} />,
+    );
+    expect(announce).toHaveBeenLastCalledWith(
+      expect.stringContaining("guessing your name"),
+    );
   });
 });

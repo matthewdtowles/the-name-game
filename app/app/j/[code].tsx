@@ -9,6 +9,7 @@ import { Field } from "../../components/Field";
 import { Screen } from "../../components/Screen";
 import { Slip } from "../../components/Slip";
 import { useGame } from "../../lib/game/GameContext";
+import { spokenCode } from "../../lib/invite";
 import { colors, fonts, space, type } from "../../lib/theme";
 
 // Where invite links and QR codes land: the code is already filled in.
@@ -33,9 +34,17 @@ export default function JoinByLink() {
       }
     >
       <View style={styles.intro}>
-        <Text style={styles.title}>You’re invited to play</Text>
+        <Text accessibilityRole="header" style={styles.title}>
+          You’re invited to play
+        </Text>
         <Slip tilt={-2} style={styles.codeSlip}>
-          <Text style={styles.code}>{code}</Text>
+          <Text
+            style={styles.code}
+            accessibilityLabel={`Code ${spokenCode(code)}`}
+            maxFontSizeMultiplier={1.2}
+          >
+            {code}
+          </Text>
         </Slip>
       </View>
       {game.error ? <Banner message={game.error.message} /> : null}

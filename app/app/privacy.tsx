@@ -12,7 +12,13 @@ export default function Privacy() {
   return (
     <Screen>
       <View style={styles.intro}>
-        <Text style={styles.title}>Privacy</Text>
+        <Text
+          accessibilityRole="header"
+          style={styles.title}
+          maxFontSizeMultiplier={1.5}
+        >
+          Privacy
+        </Text>
         <Text style={styles.lede}>
           Whose Name? has no accounts, ads, or analytics. It keeps only what a
           game needs, only while the game lasts.
@@ -77,7 +83,9 @@ export default function Privacy() {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.heading}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.heading}>
+        {title}
+      </Text>
       {children}
     </View>
   );

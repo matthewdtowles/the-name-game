@@ -28,7 +28,18 @@ export function PlayerList({
             : "writing";
         return (
           <View key={player.id} style={styles.row}>
-            <View style={styles.who}>
+            <View
+              style={styles.who}
+              accessible
+              accessibilityLabel={[
+                player.displayName,
+                isYou ? "you" : null,
+                player.id === room.hostId ? "hosting" : null,
+                status,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            >
               <Text style={styles.name} numberOfLines={1}>
                 {player.displayName}
                 {isYou ? <Text style={styles.aside}> (you)</Text> : null}
@@ -85,7 +96,9 @@ function Arrow(props: {
       onPress={props.onPress}
       style={[styles.arrow, props.disabled && styles.arrowDisabled]}
     >
-      <Text style={styles.arrowText}>{props.symbol}</Text>
+      <Text style={styles.arrowText} maxFontSizeMultiplier={1.5}>
+        {props.symbol}
+      </Text>
     </Pressable>
   );
 }

@@ -3,6 +3,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { useAnnounce } from "../lib/announce";
 import { useGame } from "../lib/game/GameContext";
 import { colors, fonts, space, type } from "../lib/theme";
 import { Button } from "./Button";
@@ -20,7 +21,11 @@ export function Reveal({ room }: { room: RoomView }) {
   return (
     <Screen>
       <View style={styles.listen}>
-        <Text style={styles.title}>
+        <Text
+          accessibilityRole="header"
+          style={styles.title}
+          maxFontSizeMultiplier={1.5}
+        >
           {room.tv ? "Eyes on the TV" : "Listen up"}
         </Text>
         <Text style={styles.body}>
@@ -40,6 +45,8 @@ function HostReveal({ room, reveal }: { room: RoomView; reveal: RevealView }) {
   const { index, total, all, names } = reveal;
   const last = index === total - 1;
   const seconds = room.settings.revealSeconds;
+  // A host using a screen reader hears each name as it comes up.
+  useAnnounce(names && !all ? names[index] : null);
 
   // Timed reveal: the host's phone moves the slips along. The clock restarts
   // whenever the slip changes, so tapping Back or Next resets it, and showing
@@ -112,12 +119,23 @@ function HostReveal({ room, reveal }: { room: RoomView; reveal: RevealView }) {
         </View>
       ) : names ? (
         <Slip tilt={index % 2 === 0 ? -2 : 2} style={styles.bigSlip}>
-          <Text style={styles.bigName} adjustsFontSizeToFit numberOfLines={3}>
+          <Text
+            style={styles.bigName}
+            accessibilityLiveRegion="polite"
+            adjustsFontSizeToFit
+            numberOfLines={3}
+          >
             {names[index]}
           </Text>
         </Slip>
       ) : (
-        <Text style={styles.onTv}>
+        <Text
+          style={styles.onTv}
+          maxFontSizeMultiplier={1.2}
+          accessibilityLabel={
+            all ? "All names" : `Name ${index + 1} of ${total}`
+          }
+        >
           {all ? "All names" : `${index + 1} / ${total}`}
         </Text>
       )}

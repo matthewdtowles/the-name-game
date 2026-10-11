@@ -43,3 +43,8 @@ export async function shareInvite(
     return "failed";
   }
 }
+
+// A room code as a screen reader should say it: letter by letter.
+export function spokenCode(code: string): string {
+  return code.split("").join(" ");
+}
