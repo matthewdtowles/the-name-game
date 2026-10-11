@@ -8,3 +8,8 @@ cdk.out/
 !.env.example
 .DS_Store
 expo-env.d.ts
+
+# Native projects come from prebuild; the Play key comes from a secret.
+app/ios/
+app/android/
+app/play-service-account.json
