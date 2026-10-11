@@ -62,7 +62,13 @@ export const ClientMessage = z.discriminatedUnion("type", [
     code: RoomCode,
     sessionToken: SessionToken,
   }),
-  z.object({ type: z.literal("submitName"), name: SecretName }),
+  // keepSimilar: the player checked a name close to one already in and it's
+  // someone else.
+  z.object({
+    type: z.literal("submitName"),
+    name: SecretName,
+    keepSimilar: z.boolean().optional(),
+  }),
   z.object({ type: z.literal("updateSettings"), settings: Settings }),
   z.object({ type: z.literal("kick"), playerId: PlayerId }),
   z.object({ type: z.literal("startReveal") }),
@@ -107,6 +113,7 @@ export const ErrorReason = z.enum([
   "not_in_room",
   "display_name_taken",
   "duplicate_name",
+  "similar_name",
   "not_host",
   "wrong_phase",
   "not_enough_names",

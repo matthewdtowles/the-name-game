@@ -34,6 +34,8 @@ const MESSAGES: Record<ErrorReason, string> = {
   not_in_room: "You're not in that game.",
   display_name_taken: "Someone in the game already has that name.",
   duplicate_name: "Someone already picked that name. Choose another.",
+  similar_name:
+    "That's very close to a name already in. Check it, or keep yours if it's someone else.",
   not_host: "Only the host can do that.",
   wrong_phase: "You can't do that right now.",
   not_enough_names: "At least two names are needed to start.",
@@ -384,7 +386,12 @@ function toAction(
 ): Action {
   switch (message.type) {
     case "submitName":
-      return { type: "submitName", playerId, name: message.name };
+      return {
+        type: "submitName",
+        playerId,
+        name: message.name,
+        keepSimilar: message.keepSimilar,
+      };
     case "updateSettings":
       return { type: "updateSettings", playerId, settings: message.settings };
     case "kick":

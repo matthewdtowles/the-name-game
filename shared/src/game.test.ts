@@ -6,6 +6,7 @@ import {
   createRoom,
   screenFor,
   normalizeName,
+  similarNames,
   TIER_LIMITS,
   viewFor,
   type Action,
@@ -180,6 +181,39 @@ describe("submitting names", () => {
     });
     assert.equal(
       reason(room, { type: "submitName", playerId: "p1", name: "beyonce " }),
+      "duplicate_name",
+    );
+  });
+
+  it("asks the later submitter to check a near-duplicate, and lets them keep it", () => {
+    const room = must(lobby("Sam", "Alex"), {
+      type: "submitName",
+      playerId: "p0",
+      name: "Tom Hanks",
+    });
+    const tryName = {
+      type: "submitName",
+      playerId: "p1",
+      name: "tom hanx",
+    } as const;
+    assert.equal(reason(room, tryName), "similar_name");
+    const kept = must(room, { ...tryName, keepSimilar: true });
+    assert.equal(kept.players[1]!.name, "tom hanx");
+  });
+
+  it("still refuses an exact duplicate when told to keep a similar one", () => {
+    const room = must(lobby("Sam", "Alex"), {
+      type: "submitName",
+      playerId: "p0",
+      name: "Prince",
+    });
+    assert.equal(
+      reason(room, {
+        type: "submitName",
+        playerId: "p1",
+        name: "prince",
+        keepSimilar: true,
+      }),
       "duplicate_name",
     );
   });
@@ -367,6 +401,30 @@ describe("viewFor", () => {
 describe("normalizeName", () => {
   it("ignores case, accents, and extra spacing", () => {
     assert.equal(normalizeName("  Beyoncé   Knowles "), "beyonce knowles");
+  });
+});
+
+describe("similarNames", () => {
+  it("catches misspellings, swapped letters, and punctuation", () => {
+    for (const [a, b] of [
+      ["Tom Hanks", "tom hanx"],
+      ["Beyonce", "Beyocne"],
+      ["Jay-Z", "Jay Z"],
+      ["Arnold Schwarzenegger", "Arnold Schwarzeneger"],
+      ["Bart", "Bort"],
+    ])
+      assert.equal(similarNames(a!, b!), true, `${a} / ${b}`);
+  });
+
+  it("leaves different people with similar names alone", () => {
+    for (const [a, b] of [
+      ["John Lennon", "John Legend"],
+      ["Chris Pine", "Chris Pratt"],
+      ["Mom", "Tom"],
+      ["Bo", "Al"],
+      ["Tom Hanks", "Tom Holland"],
+    ])
+      assert.equal(similarNames(a!, b!), false, `${a} / ${b}`);
   });
 });
 
