@@ -1,4 +1,5 @@
 import type { ScreenView } from "@tng/shared";
+import { useKeepAwake } from "expo-keep-awake";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   Pressable,
@@ -35,6 +36,8 @@ export function Tv({ code }: { code?: string }) {
     client.start();
     return () => client.stop();
   }, [client]);
+  // A TV that dims or sleeps mid-game loses the room.
+  useKeepAwake(undefined, { suppressDeactivateWarnings: true });
   const { status, screen } = useSyncExternalStore(
     client.subscribe,
     client.getState,

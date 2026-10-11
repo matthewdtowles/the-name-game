@@ -26,7 +26,11 @@ aws s3 sync app/dist "s3://$bucket" --delete --only-show-errors --exclude "*" \
   --include "_expo/*" --include "assets/*" \
   --cache-control "public, max-age=31536000, immutable"
 aws s3 sync app/dist "s3://$bucket" --delete --only-show-errors \
-  --exclude "_expo/*" --exclude "assets/*" \
+  --exclude "_expo/*" --exclude "assets/*" --exclude ".well-known/*" \
   --cache-control "no-cache"
+# The app-link files have no extension, or one S3 may not map, and phones only
+# trust them as JSON.
+aws s3 sync app/dist/.well-known "s3://$bucket/.well-known" --delete --only-show-errors \
+  --content-type application/json --cache-control "no-cache"
 aws cloudfront create-invalidation --distribution-id "$distribution" --paths "/*" >/dev/null
 echo "Published $(output "$web" Url)"

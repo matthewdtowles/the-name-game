@@ -1,7 +1,7 @@
 import { ROOM_CODE_LENGTH } from "@tng/shared";
-import { Link, Redirect } from "expo-router";
+import { Link, Redirect, router } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { Banner } from "../components/Banner";
 import { Button } from "../components/Button";
@@ -67,6 +67,13 @@ export default function Home() {
           disabled={!ready || code.length !== ROOM_CODE_LENGTH}
           onPress={() => game.send({ type: "join", code, displayName })}
         />
+        {Platform.OS !== "web" ? (
+          <Button
+            label="Scan a code"
+            variant="quiet"
+            onPress={() => router.push("/scan")}
+          />
+        ) : null}
       </View>
 
       <Link href="/privacy" style={styles.privacy}>
