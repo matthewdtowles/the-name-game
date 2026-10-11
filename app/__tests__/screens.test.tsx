@@ -201,6 +201,40 @@ describe("Lobby", () => {
     expect(screen.getByText("Someone already picked that name.")).toBeTruthy();
   });
 
+  it("lets a player keep a name close to another once they've checked it", async () => {
+    const lobby = () => (
+      <Lobby room={room({ you: { playerId: "p3", submittedName: null } })} />
+    );
+    await render(lobby());
+    const field = screen.getByLabelText("Who’s on your slip?");
+    await fireEvent.changeText(field, "Tom Hanx");
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Put it in the hat" }),
+    );
+
+    mockGame.error = {
+      reason: "similar_name",
+      message: "That's very close to a name already in.",
+    };
+    await screen.rerender(lobby());
+    expect(
+      screen.getByText("That's very close to a name already in."),
+    ).toBeTruthy();
+    await fireEvent.press(
+      screen.getByRole("button", { name: "It’s someone else" }),
+    );
+    expect(mockGame.send).toHaveBeenLastCalledWith({
+      type: "submitName",
+      name: "Tom Hanx",
+      keepSimilar: true,
+    });
+
+    await fireEvent.changeText(field, "Tom Hanks");
+    expect(
+      screen.queryByRole("button", { name: "It’s someone else" }),
+    ).toBeNull();
+  });
+
   it("lets the host change the number of reminders", async () => {
     await render(<Lobby room={room()} />);
     await fireEvent.press(

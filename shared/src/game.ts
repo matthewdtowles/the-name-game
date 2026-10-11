@@ -87,7 +87,12 @@ export type Action =
   | { type: "disconnect"; playerId: string }
   | { type: "leave"; playerId: string }
   | { type: "kick"; playerId: string; targetId: string }
-  | { type: "submitName"; playerId: string; name: string }
+  | {
+      type: "submitName";
+      playerId: string;
+      name: string;
+      keepSimilar?: boolean;
+    }
   | { type: "updateSettings"; playerId: string; settings: Settings }
   | { type: "startReveal"; playerId: string }
   | { type: "revealTo"; playerId: string; index: number }
@@ -179,6 +184,13 @@ export function apply(room: Room, action: Action, random: Random): Result {
           p.id !== actor.id && p.name !== null && normalizeName(p.name) === key,
       );
       if (taken) return fail("duplicate_name");
+      const close = room.players.some(
+        (p) =>
+          p.id !== actor.id &&
+          p.name !== null &&
+          similarNames(p.name, action.name),
+      );
+      if (close && !action.keepSimilar) return fail("similar_name");
       return ok({
         ...room,
         players: room.players.map((p) =>
@@ -435,6 +447,37 @@ export function normalizeName(name: string): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Names this close are probably one person spelled two ways ("tom hanx"), so
+// the player is asked to check, and may keep theirs if it's someone else. The
+// edit distance allowed grows with length: one per four letters.
+export function similarNames(a: string, b: string): boolean {
+  const x = Array.from(normalizeName(a).replace(/[^\p{L}\p{N}]/gu, ""));
+  const y = Array.from(normalizeName(b).replace(/[^\p{L}\p{N}]/gu, ""));
+  return editDistance(x, y) <= Math.floor(Math.max(x.length, y.length) / 4);
+}
+
+// Insertions, deletions, substitutions, and swaps of neighbors each cost one.
+function editDistance(a: string[], b: string[]): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) =>
+      i === 0 ? j : j === 0 ? i : 0,
+    ),
+  );
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i]![j] = Math.min(
+        d[i - 1]![j]! + 1,
+        d[i]![j - 1]! + 1,
+        d[i - 1]![j - 1]! + cost,
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        d[i]![j] = Math.min(d[i]![j]!, d[i - 2]![j - 2]! + 1);
+    }
+  }
+  return d[a.length]![b.length]!;
 }
 
 // A player's name is public once it's been guessed out loud, and everyone's is

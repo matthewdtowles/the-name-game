@@ -126,6 +126,19 @@ describe("messages", () => {
     assert.equal(last("c-alex", "room").room.reveal?.names, null);
   });
 
+  it("lets a player keep a name close to another", async () => {
+    await hostAndJoin();
+    await send("c-host", { type: "submitName", name: "Tom Hanks" });
+    await send("c-alex", { type: "submitName", name: "Tom Hanx" });
+    assert.equal(last("c-alex", "error").reason, "similar_name");
+    await send("c-alex", {
+      type: "submitName",
+      name: "Tom Hanx",
+      keepSimilar: true,
+    });
+    assert.equal(last("c-alex", "room").room.you.submittedName, "Tom Hanx");
+  });
+
   it("returns rule errors to the sender only", async () => {
     await hostAndJoin();
     const before = inbox.get("c-host")?.length;

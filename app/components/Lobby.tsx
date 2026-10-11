@@ -157,15 +157,33 @@ function YourSlip({ submittedName }: { submittedName: string | null }) {
   const [changing, setChanging] = useState(false);
   const [draft, setDraft] = useState("");
   // The name last sent. The send clears any error, so an error now means the
-  // server turned this name down (a duplicate) and the player can try again.
+  // server turned this name down (a duplicate, or close to one) and the player
+  // can try again.
   const [pending, setPending] = useState<string | null>(null);
   const confirmed = pending !== null && submittedName === pending;
   const awaiting = pending !== null && !confirmed && !game.error;
   const editing = submittedName === null || (changing && !confirmed);
 
-  const submit = () => {
+  const nameError =
+    game.error?.reason === "duplicate_name" ||
+    game.error?.reason === "similar_name"
+      ? game.error.message
+      : null;
+  // Only for the name the server flagged, not one edited since.
+  const canKeep =
+    game.error?.reason === "similar_name" && draft.trim() === pending;
+
+  const submit = (keepSimilar?: boolean) => {
     const name = draft.trim();
-    if (!name || !game.send({ type: "submitName", name })) return;
+    if (
+      !name ||
+      !game.send({
+        type: "submitName",
+        name,
+        ...(keepSimilar ? { keepSimilar } : {}),
+      })
+    )
+      return;
     setPending(name);
   };
 
@@ -202,17 +220,22 @@ function YourSlip({ submittedName }: { submittedName: string | null }) {
         autoCorrect={false}
         maxLength={60}
         returnKeyType="done"
-        onSubmitEditing={submit}
-        error={
-          game.error?.reason === "duplicate_name" ? game.error.message : null
-        }
+        onSubmitEditing={() => submit()}
+        error={nameError}
       />
       <Button
         label="Put it in the hat"
         variant="secondary"
         disabled={draft.trim().length === 0 || awaiting}
-        onPress={submit}
+        onPress={() => submit()}
       />
+      {canKeep ? (
+        <Button
+          label="It’s someone else"
+          variant="quiet"
+          onPress={() => submit(true)}
+        />
+      ) : null}
       {changing ? (
         <Button
           label="Keep my name"
