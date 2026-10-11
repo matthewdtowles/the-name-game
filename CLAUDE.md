@@ -13,7 +13,7 @@ step between workspaces).
 |---|---|
 | `shared/` (`@tng/shared`) | The wire protocol (`protocol.ts`, zod schemas) and the pure rules engine (`game.ts`). Imported by both the app and the server. |
 | `server/` (`@tng/server`) | `handler.ts` turns socket events into rule actions behind `Store` and `Send` interfaces. `dev.ts` runs it over `ws` with `MemoryStore`; `lambda.ts` runs it on API Gateway with `DynamoStore`. `smoke.ts` plays a real game against any URL. |
-| `app/` (`@tng/app`) | Expo (SDK 56) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/connection.ts` keeps a socket up (backoff, heartbeat); `client.ts` (players, resumes the stored session) and `screenClient.ts` (TVs) build on it. Screens read the player client through `useGame()`; TV routes don't start it. |
+| `app/` (`@tng/app`) | Expo (SDK 57) + expo-router. One codebase for iOS, Android, and the web build that guests and TVs use. `lib/game/connection.ts` keeps a socket up (backoff, heartbeat); `client.ts` (players, resumes the stored session) and `screenClient.ts` (TVs) build on it. Screens read the player client through `useGame()`; TV routes don't start it. |
 | `infra/` (`@tng/infra`) | AWS CDK, per stage: `TheNameGame{Staging,Prod}Backend` (API Gateway WebSocket on `play.` its domain, one Lambda, DynamoDB with TTL) and `TheNameGame{Staging,Prod}Web` (the web export in S3 behind CloudFront). Prod is `whosename.app`, staging `staging.whosename.app`. `infra/setup/` holds the one-time account setup (see its README). |
 
 ## Commands

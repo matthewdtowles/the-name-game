@@ -35,7 +35,7 @@ each one.
 
 | Area | Decision | Why |
 |---|---|---|
-| Clients | One **Expo** codebase (SDK 56, expo-router, TypeScript) builds the iOS app, the Android app, and the **web** version | Guests can join from a browser without installing anything. The TV view is just another web route. The stack and patterns come from `i-want-my-mtg-mobile`. |
+| Clients | One **Expo** codebase (SDK 57, expo-router, TypeScript) builds the iOS app, the Android app, and the **web** version | Guests can join from a browser without installing anything. The TV view is just another web route. The stack and patterns come from `i-want-my-mtg-mobile`. |
 | Backend | **Serverless on AWS**: API Gateway WebSocket API → one Lambda (Node, arm64) → DynamoDB (on-demand, TTL) | Costs about $0 when idle and pennies per thousand games. There's no server to patch or keep alive. Multi-AZ by default, and it scales if the game takes off. Game state survives deploys and phones going to sleep. |
 | Name | **Whose Name?** at **whosename.app** (`play.` for the game server, `staging.` for staging) | It names the guessing at the heart of the game, and no App Store app uses it, while "The Name Game", "Fishbowl" and "Celebrity" are crowded. Store listings can add "The Name Game" as a subtitle so generic searches still find it. |
 | App identity | Bundle ID and package **`com.matthewdtowles.whosename`**, EAS project `@mtengineer/the-name-game`. The UI is dark only: the table at night. The icon is a paper slip with a question mark, drawn by `app/scripts/make-icons.sh`. | Follows the iwmm app's naming. A bundle ID can't change once the app is in a store. |
