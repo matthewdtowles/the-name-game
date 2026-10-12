@@ -1,4 +1,5 @@
 import type { GameView, PlayerView, RoomView } from "@tng/shared";
+import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { useAnnounce } from "../lib/announce";
@@ -11,6 +12,7 @@ import {
   type Team,
 } from "../lib/teams";
 import { colors, fonts, space, type } from "../lib/theme";
+import { clockText, useTurnClock } from "../lib/turnClock";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
 import { ConfirmButton } from "./ConfirmButton";
@@ -24,6 +26,14 @@ export function Play({ room }: { room: RoomView }) {
   const play = room.game;
   const you = room.you.playerId;
   const isHost = you === room.hostId;
+  const clock = useTurnClock(play, room.players, room.settings.turnSeconds);
+  // The host's phone calls time; the server ignores it if the turn moved on.
+  const timeUp = isHost && clock === 0 && !play?.pending ? play?.turn : null;
+  const { send } = game;
+  useEffect(() => {
+    if (timeUp) send({ type: "timeUp", turn: timeUp });
+  }, [send, timeUp]);
+  if (!play) return null;
   const teams = teamsOf(room.players);
   const turnTeam = teams.find((t) => t.leader.id === play?.turn);
   const yourTeam = room.players.find((p) => p.id === you)?.team ?? null;
@@ -75,6 +85,20 @@ export function Play({ room }: { room: RoomView }) {
         >
           {title}
         </Text>
+        {clock !== null ? (
+          <Text
+            style={styles.clock}
+            accessibilityLabel={
+              clock === 0
+                ? "Time’s up"
+                : `${clock} seconds left${play.pending ? ", paused" : ""}`
+            }
+          >
+            {clock === 0
+              ? "Time’s up"
+              : `${clockText(clock)} ${play.pending ? "paused" : "to guess"}`}
+          </Text>
+        ) : null}
         <Text style={styles.body}>
           {yourTeam === null
             ? "You’re watching this one."
@@ -267,6 +291,7 @@ function Watching({ players }: { players: PlayerView[] }) {
 const styles = StyleSheet.create({
   intro: { gap: space.md, paddingTop: space.xl },
   title: { ...type.title, color: colors.paper },
+  clock: { ...type.strong, color: colors.paper, fontVariant: ["tabular-nums"] },
   body: { ...type.body, color: colors.dusk },
   pending: { gap: space.md },
   pendingText: { ...type.strong, color: colors.ink },

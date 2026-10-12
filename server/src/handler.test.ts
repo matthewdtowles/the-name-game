@@ -139,6 +139,22 @@ describe("messages", () => {
     assert.equal(last("c-alex", "room").room.you.submittedName, "Tom Hanx");
   });
 
+  it("passes the turn when the host calls time", async () => {
+    await hostAndJoin();
+    await send("c-host", {
+      type: "updateSettings",
+      settings: { reminders: 1, revealSeconds: null, turnSeconds: 30 },
+    });
+    await send("c-host", { type: "submitName", name: "Cher" });
+    await send("c-alex", { type: "submitName", name: "Prince" });
+    await send("c-host", { type: "startReveal" });
+    await send("c-host", { type: "finishReveal" });
+    const game = () => last("c-alex", "room").room.game;
+    const first = game()!.turn;
+    await send("c-host", { type: "timeUp", turn: first });
+    assert.notEqual(game()!.turn, first);
+  });
+
   it("returns rule errors to the sender only", async () => {
     await hostAndJoin();
     const before = inbox.get("c-host")?.length;
@@ -340,7 +356,7 @@ describe("usage", () => {
     await hostAndJoin();
     await send("c-host", {
       type: "updateSettings",
-      settings: { reminders: 0, revealSeconds: null },
+      settings: { reminders: 0, revealSeconds: null, turnSeconds: null },
     });
     await send("c-host", { type: "submitName", name: "Cher" });
     await send("c-alex", { type: "submitName", name: "Prince" });

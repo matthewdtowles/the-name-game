@@ -17,6 +17,7 @@ import { tvCodeStorage } from "../lib/game/storage";
 import { joinUrl } from "../lib/invite";
 import { describeGuess, teamsOf } from "../lib/teams";
 import { colors, fonts, space } from "../lib/theme";
+import { clockText, useTurnClock } from "../lib/turnClock";
 import { winnersText } from "./Over";
 import { Slip } from "./Slip";
 
@@ -183,6 +184,7 @@ function Reveal({
 // The game board, for everyone to follow from the couch.
 function Play({ screen, k }: { screen: ScreenView; k: number }) {
   const game = screen.game;
+  const clock = useTurnClock(game, screen.players, screen.turnSeconds);
   const teams = teamsOf(screen.players);
   const turn = teams.find((t) => t.leader.id === game?.turn);
   const guess = game ? describeGuess(game, screen.players) : null;
@@ -195,6 +197,11 @@ function Play({ screen, k }: { screen: ScreenView; k: number }) {
       >
         {turn ? `${turn.leader.displayName}’s team’s turn` : "Game on"}
       </Text>
+      {clock !== null ? (
+        <Text style={[styles.clock, { fontSize: 56 * k, lineHeight: 64 * k }]}>
+          {clock === 0 ? "Time’s up" : clockText(clock)}
+        </Text>
+      ) : null}
       <Text style={[styles.body, { fontSize: 30 * k, lineHeight: 40 * k }]}>
         {guess
           ? `${guess.guesser} is guessing ${guess.target}…`
@@ -339,6 +346,11 @@ const styles = StyleSheet.create({
   join: { flexShrink: 1 },
   codeRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
   title: { fontFamily: fonts.heavy, color: colors.paper },
+  clock: {
+    fontFamily: fonts.heavy,
+    color: colors.paper,
+    fontVariant: ["tabular-nums"],
+  },
   body: { fontFamily: fonts.regular, color: colors.dusk },
   code: { fontFamily: fonts.heavy, color: colors.ink },
   center: { alignItems: "center" },

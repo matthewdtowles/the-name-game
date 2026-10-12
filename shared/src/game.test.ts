@@ -247,13 +247,13 @@ describe("settings", () => {
     const room = must(lobby("Sam"), {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders: 3, revealSeconds: null },
+      settings: { reminders: 3, revealSeconds: null, turnSeconds: null },
     });
     assert.equal(room.remindersLeft, 3);
   });
 
   it("is host-only and lobby-only", () => {
-    const settings = { reminders: 0, revealSeconds: null };
+    const settings = { reminders: 0, revealSeconds: null, turnSeconds: null };
     assert.equal(
       reason(lobby("Sam", "Alex"), {
         type: "updateSettings",
@@ -328,7 +328,7 @@ describe("reminders", () => {
     room = must(room, {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders, revealSeconds: null },
+      settings: { reminders, revealSeconds: null, turnSeconds: null },
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
     return must(room, { type: "finishReveal", playerId: "p0" });
@@ -566,13 +566,17 @@ describe("stepping through the reveal", () => {
 describe("the guessing game", () => {
   // Sam (p0, host), Alex (p1), Jo (p2), Kim (p3), with names in the hat, past
   // the reveal and playing.
-  function playing(count = 4, reminders = 1): Room {
+  function playing(
+    count = 4,
+    reminders = 1,
+    turnSeconds: number | null = null,
+  ): Room {
     const names = ["Cher", "Prince", "Madonna", "Bono"].slice(0, count);
     let room = submitted(...names);
     room = must(room, {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders, revealSeconds: null },
+      settings: { reminders, revealSeconds: null, turnSeconds },
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
     return must(room, { type: "finishReveal", playerId: "p0" });
@@ -687,6 +691,41 @@ describe("the guessing game", () => {
     );
     const cancelled = must(room, { type: "cancelGuess", playerId: "p0" });
     assert.equal(cancelled.game?.pending, null);
+  });
+
+  it("passes the turn when the host's clock runs out, and can be undone", () => {
+    const room = playing(4, 1, 60);
+    assert.equal(
+      reason(room, { type: "timeUp", playerId: "p1", turn: "p0" }),
+      "not_host",
+    );
+    const passed = must(room, { type: "timeUp", playerId: "p0", turn: "p0" });
+    assert.equal(passed.game?.turn, "p1");
+    assert.equal(
+      must(passed, { type: "undo", playerId: "p0" }).game?.turn,
+      "p0",
+    );
+  });
+
+  it("ignores a clock that ran out after the turn moved on or a guess was made", () => {
+    const room = playing(4, 1, 60);
+    const moved = answer(guess(room, "p0", "p2"), "p2", false);
+    assert.equal(
+      must(moved, { type: "timeUp", playerId: "p0", turn: "p0" }).game?.turn,
+      "p1",
+    );
+    const pending = guess(room, "p0", "p2");
+    assert.deepEqual(
+      must(pending, { type: "timeUp", playerId: "p0", turn: "p0" }).game,
+      pending.game,
+    );
+  });
+
+  it("has no clock to run out unless the host set one", () => {
+    assert.equal(
+      reason(playing(), { type: "timeUp", playerId: "p0", turn: "p0" }),
+      "wrong_phase",
+    );
   });
 
   it("lets the host end the round once no reminders are left", () => {

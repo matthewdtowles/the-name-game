@@ -37,7 +37,7 @@ function room(overrides: Partial<RoomView> = {}): RoomView {
     code: "WXYZ",
     phase: "lobby",
     tier: "free",
-    settings: { reminders: 1, revealSeconds: null },
+    settings: { reminders: 1, revealSeconds: null, turnSeconds: null },
     hostId: "p1",
     players: [
       {
@@ -236,6 +236,17 @@ describe("Lobby", () => {
     ).toBeNull();
   });
 
+  it("lets the host set a turn timer", async () => {
+    await render(<Lobby room={room()} />);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "60 seconds a guess" }),
+    );
+    expect(mockGame.send).toHaveBeenCalledWith({
+      type: "updateSettings",
+      settings: { reminders: 1, revealSeconds: null, turnSeconds: 60 },
+    });
+  });
+
   it("lets the host change the number of reminders", async () => {
     await render(<Lobby room={room()} />);
     await fireEvent.press(
@@ -243,7 +254,7 @@ describe("Lobby", () => {
     );
     expect(mockGame.send).toHaveBeenCalledWith({
       type: "updateSettings",
-      settings: { reminders: 2, revealSeconds: null },
+      settings: { reminders: 2, revealSeconds: null, turnSeconds: null },
     });
   });
 
@@ -265,7 +276,7 @@ describe("Lobby", () => {
     );
     expect(mockGame.send).toHaveBeenCalledWith({
       type: "updateSettings",
-      settings: { reminders: 1, revealSeconds: 8 },
+      settings: { reminders: 1, revealSeconds: 8, turnSeconds: null },
     });
   });
 
@@ -325,7 +336,7 @@ describe("Reveal", () => {
   it("moves on by itself at the host's pace", async () => {
     jest.useFakeTimers();
     try {
-      const settings = { reminders: 1, revealSeconds: 5 };
+      const settings = { reminders: 1, revealSeconds: 5, turnSeconds: null };
       await render(
         <Reveal
           room={room({ phase: "reveal", settings, reveal: reveal(0) })}
@@ -367,6 +378,7 @@ describe("TV", () => {
     hostId: null,
     players: [],
     remindersLeft: 1,
+    turnSeconds: null,
     reveal: null,
     game: null,
     ...overrides,
@@ -486,6 +498,34 @@ describe("Play", () => {
     expect(screen.getByText("Prince")).toBeTruthy();
     expect(screen.getByText("Madonna")).toBeTruthy();
     expect(screen.queryByText("Cher")).toBeNull();
+  });
+
+  it("shows the turn clock, and the host's phone calls time", async () => {
+    jest.useFakeTimers();
+    try {
+      const settings = { reminders: 1, revealSeconds: null, turnSeconds: 30 };
+      await render(
+        <Play
+          room={playing({
+            settings,
+            you: { playerId: "p2", submittedName: "Prince" },
+          })}
+        />,
+      );
+      expect(screen.getByText("0:30 to guess")).toBeTruthy();
+      await act(() => jest.advanceTimersByTime(30_000));
+      expect(screen.getByText("Time’s up")).toBeTruthy();
+      expect(mockGame.send).not.toHaveBeenCalled();
+
+      await render(<Play room={playing({ settings })} />);
+      await act(() => jest.advanceTimersByTime(30_000));
+      expect(mockGame.send).toHaveBeenCalledWith({
+        type: "timeUp",
+        turn: "p1",
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("lets your team guess another team's leader on its turn", async () => {

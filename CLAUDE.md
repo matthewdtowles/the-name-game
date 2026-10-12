@@ -61,7 +61,8 @@ then prod the same way. Deploy by hand only to try something on staging; after
   (`{ type: "display" }`): it opens a room whose first player hosts, or with a
   code re-attaches after a reload. A TV's binding has no player and may only
   watch. The reveal's position lives in the room, so the host's phone is the
-  remote; with a pace set, the host's phone advances it.
+  remote; with a pace set, the host's phone advances it. The turn timer works
+  the same way: every screen counts down, and the host's phone calls `timeUp`.
 - **The rules engine is pure:** no I/O, no clock, no `Math.random`. The server
   supplies ids, tokens, and a crypto-backed random source, so tests can pass a
   deterministic one.

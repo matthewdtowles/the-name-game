@@ -39,7 +39,7 @@ describe("ClientMessage", () => {
       { type: "submitName", name: "Dolly Parton" },
       {
         type: "updateSettings",
-        settings: { reminders: 0, revealSeconds: null },
+        settings: { reminders: 0, revealSeconds: null, turnSeconds: null },
       },
       { type: "kick", playerId: "p1" },
       { type: "startReveal" },
@@ -98,7 +98,7 @@ describe("ClientMessage", () => {
     for (const reminders of [-1, MAX_REMINDERS + 1, 1.5]) {
       const message = {
         type: "updateSettings",
-        settings: { reminders, revealSeconds: null },
+        settings: { reminders, revealSeconds: null, turnSeconds: null },
       };
       assert.equal(
         ClientMessage.safeParse(message).success,
@@ -115,7 +115,7 @@ describe("ServerMessage", () => {
       code: "WXYZ",
       phase: "reveal",
       tier: "free",
-      settings: { reminders: 1, revealSeconds: null },
+      settings: { reminders: 1, revealSeconds: null, turnSeconds: null },
       hostId: "p1",
       players: [
         {
@@ -167,6 +167,7 @@ describe("ServerMessage", () => {
         hostId: null,
         players: [],
         remindersLeft: 0,
+        turnSeconds: 60,
         reveal: { index: 1, total: 3, slips: ["Cher"] },
         game: null,
       },
@@ -174,6 +175,17 @@ describe("ServerMessage", () => {
     assert.deepEqual(
       ServerMessage.parse(JSON.parse(JSON.stringify(message))),
       message,
+    );
+  });
+
+  it("defaults the turn clock to off for clients that don't send it", () => {
+    const parsed = ClientMessage.parse({
+      type: "updateSettings",
+      settings: { reminders: 1, revealSeconds: null },
+    });
+    assert.equal(
+      parsed.type === "updateSettings" && parsed.settings.turnSeconds,
+      null,
     );
   });
 

@@ -14,6 +14,8 @@ export const DEFAULT_REMINDERS = 1;
 export const MAX_REMINDERS = 5;
 export const MIN_REVEAL_SECONDS = 3;
 export const MAX_REVEAL_SECONDS = 30;
+export const MIN_TURN_SECONDS = 10;
+export const MAX_TURN_SECONDS = 300;
 
 export const RoomCode = z
   .string()
@@ -48,6 +50,14 @@ export const Settings = z.object({
     .min(MIN_REVEAL_SECONDS)
     .max(MAX_REVEAL_SECONDS)
     .nullable(),
+  // Seconds a team has to make each guess before the turn passes; null means
+  // no clock. Defaults for rooms and clients from before it existed.
+  turnSeconds: z
+    .int()
+    .min(MIN_TURN_SECONDS)
+    .max(MAX_TURN_SECONDS)
+    .nullable()
+    .default(null),
 });
 
 export const ClientMessage = z.discriminatedUnion("type", [
@@ -90,6 +100,8 @@ export const ClientMessage = z.discriminatedUnion("type", [
   // The guessed player (or the host for them) says whether it was right.
   z.object({ type: z.literal("answerGuess"), correct: z.boolean() }),
   z.object({ type: z.literal("cancelGuess") }),
+  // Host: the turn clock ran out on `turn`'s team, so the turn passes.
+  z.object({ type: z.literal("timeUp"), turn: PlayerId }),
   // Host: end the round once no reminders are left; the largest team wins.
   z.object({ type: z.literal("endRound") }),
   // Host: take back the last answer or ending.
@@ -186,6 +198,7 @@ export const ScreenView = z.object({
   hostId: PlayerId.nullable(),
   players: z.array(PlayerView),
   remindersLeft: z.int().min(0),
+  turnSeconds: z.int().nullable(),
   reveal: z
     .object({
       index: z.int().min(0),

@@ -411,6 +411,8 @@ function toAction(
       return { type: "guess", playerId, targetId: message.playerId };
     case "answerGuess":
       return { type: "answerGuess", playerId, correct: message.correct };
+    case "timeUp":
+      return { type: "timeUp", playerId, turn: message.turn };
     case "cancelGuess":
     case "endRound":
     case "undo":
