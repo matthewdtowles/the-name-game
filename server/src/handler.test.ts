@@ -143,7 +143,12 @@ describe("messages", () => {
     await hostAndJoin();
     await send("c-host", {
       type: "updateSettings",
-      settings: { reminders: 1, revealSeconds: null, turnSeconds: 30 },
+      settings: {
+        reminders: 1,
+        revealSeconds: null,
+        turnSeconds: 30,
+        prompt: null,
+      },
     });
     await send("c-host", { type: "submitName", name: "Cher" });
     await send("c-alex", { type: "submitName", name: "Prince" });
@@ -356,7 +361,12 @@ describe("usage", () => {
     await hostAndJoin();
     await send("c-host", {
       type: "updateSettings",
-      settings: { reminders: 0, revealSeconds: null, turnSeconds: null },
+      settings: {
+        reminders: 0,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: null,
+      },
     });
     await send("c-host", { type: "submitName", name: "Cher" });
     await send("c-alex", { type: "submitName", name: "Prince" });

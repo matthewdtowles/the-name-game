@@ -1,4 +1,4 @@
-import { MAX_REMINDERS, type RoomView } from "@tng/shared";
+import { MAX_REMINDERS, PROMPT_MAX, type RoomView } from "@tng/shared";
 import { useState } from "react";
 import QRCode from "react-native-qrcode-svg";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -67,12 +67,16 @@ export function Lobby({ room }: { room: RoomView }) {
       {game.status !== "open" ? (
         <Banner tone="info" message="Reconnecting…" />
       ) : null}
+      {room.settings.prompt ? (
+        <Text style={styles.prompt}>This game: {room.settings.prompt}</Text>
+      ) : null}
       <YourSlip submittedName={room.you.submittedName} />
       {isHost ? (
         <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.heading}>
             Game settings
           </Text>
+          <Prompt room={room} />
           <Reminders room={room} />
           <RevealPace room={room} />
           <TurnClock room={room} />
@@ -348,6 +352,95 @@ function RevealPace({ room }: { room: RoomView }) {
   );
 }
 
+const PROMPTS = [
+  "Cartoon characters",
+  "People in this room",
+  "Movie characters",
+  "Musicians",
+  "Athletes",
+  "Historical figures",
+];
+
+// What kind of names go in: anyone, one of a few ideas, or the host's own.
+function Prompt({ room }: { room: RoomView }) {
+  const game = useGame();
+  const prompt = room.settings.prompt;
+  const [custom, setCustom] = useState(
+    prompt !== null && !PROMPTS.includes(prompt),
+  );
+  const [draft, setDraft] = useState(custom ? (prompt ?? "") : "");
+  const set = (next: string | null) =>
+    game.send({
+      type: "updateSettings",
+      settings: { ...room.settings, prompt: next },
+    });
+  const chips: { label: string; selected: boolean; onPress: () => void }[] = [
+    {
+      label: "Anyone",
+      selected: !custom && prompt === null,
+      onPress: () => {
+        setCustom(false);
+        set(null);
+      },
+    },
+    ...PROMPTS.map((p) => ({
+      label: p,
+      selected: !custom && prompt === p,
+      onPress: () => {
+        setCustom(false);
+        set(p);
+      },
+    })),
+    {
+      label: "Your own",
+      selected: custom,
+      onPress: () => setCustom(true),
+    },
+  ];
+  const saveDraft = () => {
+    const next = draft.trim() || null;
+    if (next !== prompt) set(next);
+  };
+
+  return (
+    <View style={styles.pace}>
+      <Text style={styles.strong}>Names to put in</Text>
+      <View style={styles.chips}>
+        {chips.map((chip) => (
+          <Pressable
+            key={chip.label}
+            accessibilityRole="button"
+            accessibilityState={{ selected: chip.selected }}
+            onPress={chip.onPress}
+            style={[styles.chip, chip.selected && styles.chipSelected]}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                chip.selected && styles.chipTextSelected,
+              ]}
+            >
+              {chip.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {custom ? (
+        <Field
+          label="Which names?"
+          placeholder="Only people from the office"
+          value={draft}
+          onChangeText={setDraft}
+          maxLength={PROMPT_MAX}
+          returnKeyType="done"
+          onSubmitEditing={saveDraft}
+          onBlur={saveDraft}
+        />
+      ) : null}
+    </View>
+  );
+}
+
 const TURN_CLOCKS = [null, 30, 60, 90] as const;
 
 function TurnClock({ room }: { room: RoomView }) {
@@ -453,6 +546,7 @@ const styles = StyleSheet.create({
   stepperDisabled: { opacity: 0.3 },
   onTv: { color: colors.felt },
   pace: { gap: space.sm },
+  prompt: { ...type.strong, color: colors.paper },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   chip: {
     minHeight: 40,

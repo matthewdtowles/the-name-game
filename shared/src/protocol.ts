@@ -10,6 +10,7 @@ export const ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
 export const ROOM_CODE_LENGTH = 4;
 export const DISPLAY_NAME_MAX = 20;
 export const SECRET_NAME_MAX = 60;
+export const PROMPT_MAX = 40;
 export const DEFAULT_REMINDERS = 1;
 export const MAX_REMINDERS = 5;
 export const MIN_REVEAL_SECONDS = 3;
@@ -58,6 +59,9 @@ export const Settings = z.object({
     .max(MAX_TURN_SECONDS)
     .nullable()
     .default(null),
+  // What kind of names go in the hat this game ("Cartoon characters"); null
+  // means anyone.
+  prompt: z.string().trim().min(1).max(PROMPT_MAX).nullable().default(null),
 });
 
 export const ClientMessage = z.discriminatedUnion("type", [
@@ -199,6 +203,7 @@ export const ScreenView = z.object({
   players: z.array(PlayerView),
   remindersLeft: z.int().min(0),
   turnSeconds: z.int().nullable(),
+  prompt: z.string().nullable(),
   reveal: z
     .object({
       index: z.int().min(0),

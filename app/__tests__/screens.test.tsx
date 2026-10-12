@@ -37,7 +37,12 @@ function room(overrides: Partial<RoomView> = {}): RoomView {
     code: "WXYZ",
     phase: "lobby",
     tier: "free",
-    settings: { reminders: 1, revealSeconds: null, turnSeconds: null },
+    settings: {
+      reminders: 1,
+      revealSeconds: null,
+      turnSeconds: null,
+      prompt: null,
+    },
     hostId: "p1",
     players: [
       {
@@ -236,6 +241,54 @@ describe("Lobby", () => {
     ).toBeNull();
   });
 
+  it("lets the host pick what kind of names go in, or write their own", async () => {
+    await render(<Lobby room={room()} />);
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Cartoon characters" }),
+    );
+    expect(mockGame.send).toHaveBeenLastCalledWith({
+      type: "updateSettings",
+      settings: {
+        reminders: 1,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: "Cartoon characters",
+      },
+    });
+
+    await fireEvent.press(screen.getByRole("button", { name: "Your own" }));
+    const field = screen.getByLabelText("Which names?");
+    await fireEvent.changeText(field, " Only our pets ");
+    await fireEvent(field, "submitEditing");
+    expect(mockGame.send).toHaveBeenLastCalledWith({
+      type: "updateSettings",
+      settings: {
+        reminders: 1,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: "Only our pets",
+      },
+    });
+  });
+
+  it("tells every player what kind of names to put in", async () => {
+    const settings = {
+      reminders: 1,
+      revealSeconds: null,
+      turnSeconds: null,
+      prompt: "Musicians",
+    };
+    await render(
+      <Lobby
+        room={room({
+          settings,
+          you: { playerId: "p3", submittedName: null },
+        })}
+      />,
+    );
+    expect(screen.getByText("This game: Musicians")).toBeTruthy();
+  });
+
   it("lets the host set a turn timer", async () => {
     await render(<Lobby room={room()} />);
     await fireEvent.press(
@@ -243,7 +296,12 @@ describe("Lobby", () => {
     );
     expect(mockGame.send).toHaveBeenCalledWith({
       type: "updateSettings",
-      settings: { reminders: 1, revealSeconds: null, turnSeconds: 60 },
+      settings: {
+        reminders: 1,
+        revealSeconds: null,
+        turnSeconds: 60,
+        prompt: null,
+      },
     });
   });
 
@@ -254,7 +312,12 @@ describe("Lobby", () => {
     );
     expect(mockGame.send).toHaveBeenCalledWith({
       type: "updateSettings",
-      settings: { reminders: 2, revealSeconds: null, turnSeconds: null },
+      settings: {
+        reminders: 2,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: null,
+      },
     });
   });
 
@@ -276,7 +339,12 @@ describe("Lobby", () => {
     );
     expect(mockGame.send).toHaveBeenCalledWith({
       type: "updateSettings",
-      settings: { reminders: 1, revealSeconds: 8, turnSeconds: null },
+      settings: {
+        reminders: 1,
+        revealSeconds: 8,
+        turnSeconds: null,
+        prompt: null,
+      },
     });
   });
 
@@ -336,7 +404,12 @@ describe("Reveal", () => {
   it("moves on by itself at the host's pace", async () => {
     jest.useFakeTimers();
     try {
-      const settings = { reminders: 1, revealSeconds: 5, turnSeconds: null };
+      const settings = {
+        reminders: 1,
+        revealSeconds: 5,
+        turnSeconds: null,
+        prompt: null,
+      };
       await render(
         <Reveal
           room={room({ phase: "reveal", settings, reveal: reveal(0) })}
@@ -379,6 +452,7 @@ describe("TV", () => {
     players: [],
     remindersLeft: 1,
     turnSeconds: null,
+    prompt: null,
     reveal: null,
     game: null,
     ...overrides,
@@ -392,6 +466,17 @@ describe("TV", () => {
     expect(
       screen.getByText("The first player to join hosts the game."),
     ).toBeTruthy();
+  });
+
+  it("shows what kind of names go in", async () => {
+    await render(
+      <TvView
+        status="open"
+        screen={tvScreen({ prompt: "Athletes" })}
+        onNewGame={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("This game: Athletes")).toBeTruthy();
   });
 
   it("shows who's in without showing their names", async () => {
@@ -503,7 +588,12 @@ describe("Play", () => {
   it("shows the turn clock, and the host's phone calls time", async () => {
     jest.useFakeTimers();
     try {
-      const settings = { reminders: 1, revealSeconds: null, turnSeconds: 30 };
+      const settings = {
+        reminders: 1,
+        revealSeconds: null,
+        turnSeconds: 30,
+        prompt: null,
+      };
       await render(
         <Play
           room={playing({

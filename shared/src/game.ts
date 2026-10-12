@@ -118,6 +118,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reminders: DEFAULT_REMINDERS,
   revealSeconds: null,
   turnSeconds: null,
+  prompt: null,
 };
 
 // A room starts with its host, or, when a TV creates it, with nobody yet.
@@ -444,6 +445,7 @@ export function screenFor(room: Room): ScreenView {
     players: playerViews(room),
     remindersLeft: room.remindersLeft,
     turnSeconds: room.settings.turnSeconds ?? null,
+    prompt: room.settings.prompt ?? null,
     reveal: revealing
       ? {
           index: revealing.index,

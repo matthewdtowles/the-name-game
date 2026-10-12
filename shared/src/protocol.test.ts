@@ -39,7 +39,12 @@ describe("ClientMessage", () => {
       { type: "submitName", name: "Dolly Parton" },
       {
         type: "updateSettings",
-        settings: { reminders: 0, revealSeconds: null, turnSeconds: null },
+        settings: {
+          reminders: 0,
+          revealSeconds: null,
+          turnSeconds: null,
+          prompt: null,
+        },
       },
       { type: "kick", playerId: "p1" },
       { type: "startReveal" },
@@ -98,7 +103,12 @@ describe("ClientMessage", () => {
     for (const reminders of [-1, MAX_REMINDERS + 1, 1.5]) {
       const message = {
         type: "updateSettings",
-        settings: { reminders, revealSeconds: null, turnSeconds: null },
+        settings: {
+          reminders,
+          revealSeconds: null,
+          turnSeconds: null,
+          prompt: null,
+        },
       };
       assert.equal(
         ClientMessage.safeParse(message).success,
@@ -115,7 +125,12 @@ describe("ServerMessage", () => {
       code: "WXYZ",
       phase: "reveal",
       tier: "free",
-      settings: { reminders: 1, revealSeconds: null, turnSeconds: null },
+      settings: {
+        reminders: 1,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: null,
+      },
       hostId: "p1",
       players: [
         {
@@ -168,6 +183,7 @@ describe("ServerMessage", () => {
         players: [],
         remindersLeft: 0,
         turnSeconds: 60,
+        prompt: null,
         reveal: { index: 1, total: 3, slips: ["Cher"] },
         game: null,
       },
@@ -176,6 +192,28 @@ describe("ServerMessage", () => {
       ServerMessage.parse(JSON.parse(JSON.stringify(message))),
       message,
     );
+  });
+
+  it("trims the host's prompt and caps its length", () => {
+    const settings = (prompt: string) =>
+      ClientMessage.safeParse({
+        type: "updateSettings",
+        settings: {
+          reminders: 1,
+          revealSeconds: null,
+          turnSeconds: null,
+          prompt,
+        },
+      });
+    const parsed = settings("  Musicians ");
+    assert.equal(
+      parsed.success &&
+        parsed.data.type === "updateSettings" &&
+        parsed.data.settings.prompt,
+      "Musicians",
+    );
+    assert.equal(settings(" ").success, false);
+    assert.equal(settings("x".repeat(41)).success, false);
   });
 
   it("defaults the turn clock to off for clients that don't send it", () => {

@@ -124,6 +124,13 @@ function Lobby({ screen, k }: { screen: ScreenView; k: number }) {
             />
           </Slip>
         </View>
+        {screen.prompt ? (
+          <Text
+            style={[styles.title, { fontSize: 36 * k, lineHeight: 44 * k }]}
+          >
+            This game: {screen.prompt}
+          </Text>
+        ) : null}
         <Text style={[styles.body, { fontSize: 24 * k, lineHeight: 32 * k }]}>
           {host
             ? `${host.displayName} starts the reveal once everyone’s name is in.`
