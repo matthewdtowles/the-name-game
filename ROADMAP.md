@@ -176,7 +176,6 @@ Make it delightful.
 - [#54](https://github.com/matthewdtowles/the-name-game/issues/54) Add fuzzy duplicate detection
 - [#55](https://github.com/matthewdtowles/the-name-game/issues/55) Add category prompts
 - [#56](https://github.com/matthewdtowles/the-name-game/issues/56) Do an accessibility pass
-- [#57](https://github.com/matthewdtowles/the-name-game/issues/57) Lay the groundwork for localization
 
 ### Phase 7: Monetization
 The core game stays free. Paid features belong to the host, and guests never pay.
@@ -185,6 +184,11 @@ The core game stays free. Paid features belong to the host, and guests never pay
 - [#59](https://github.com/matthewdtowles/the-name-game/issues/59) Sell the Host Pass in-app through RevenueCat
 - [#60](https://github.com/matthewdtowles/the-name-game/issues/60) Sell the Host Pass on the web through Stripe
 - [#61](https://github.com/matthewdtowles/the-name-game/issues/61) Add an optional tip jar
+
+### Phase 8: Localization
+Play in other languages, once everything else is done.
+
+- [#57](https://github.com/matthewdtowles/the-name-game/issues/57) Lay the groundwork for localization
 
 ### Operations
 Keep it running, cheap, and safe.
