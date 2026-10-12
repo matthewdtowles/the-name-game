@@ -6,6 +6,7 @@ import {
   type TextInputProps,
 } from "react-native";
 
+import { useAnnounce } from "../lib/announce";
 import { colors, fonts, space, type } from "../lib/theme";
 
 // `onSlip` writes on paper, for the secret name; otherwise the field sits on the table.
@@ -19,16 +20,19 @@ export function Field({
   onSlip?: boolean;
   error?: string | null;
 }) {
+  useAnnounce(error);
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
-        placeholderTextColor={onSlip ? "#8C8577" : colors.dusk}
+        placeholderTextColor={onSlip ? "#706A5F" : colors.dusk}
         style={[styles.input, onSlip ? styles.slip : styles.table]}
         {...input}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View accessibilityLiveRegion="polite">
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </View>
     </View>
   );
 }
@@ -46,7 +50,7 @@ const styles = StyleSheet.create({
   table: {
     backgroundColor: colors.tableRaised,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.edge,
     color: colors.paper,
   },
   slip: { backgroundColor: colors.paper, color: colors.ink, borderRadius: 4 },

@@ -42,9 +42,16 @@ export function Over({ room }: { room: RoomView }) {
     >
       <Winners room={room} />
       <View style={styles.section}>
-        <Text style={styles.heading}>Who wrote what</Text>
+        <Text accessibilityRole="header" style={styles.heading}>
+          Who wrote what
+        </Text>
         {room.players.map((p, i) => (
-          <View key={p.id} style={styles.row}>
+          <View
+            key={p.id}
+            style={styles.row}
+            accessible
+            accessibilityLabel={`${p.displayName}, ${p.name ? `wrote ${p.name}` : "didn’t put a name in"}`}
+          >
             <Text style={styles.player}>{p.displayName}</Text>
             {p.name ? (
               <Slip tilt={i % 2 === 0 ? -1 : 1} style={styles.slip}>
@@ -96,7 +103,13 @@ function Winners({ room }: { room: RoomView }) {
   const { title, detail } = winnersText(room);
   return (
     <View style={styles.intro}>
-      <Text style={styles.title}>{title}</Text>
+      <Text
+        accessibilityRole="header"
+        style={styles.title}
+        maxFontSizeMultiplier={1.5}
+      >
+        {title}
+      </Text>
       {detail ? <Text style={styles.body}>{detail}</Text> : null}
     </View>
   );

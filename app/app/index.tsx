@@ -22,7 +22,13 @@ export default function Home() {
   return (
     <Screen>
       <View style={styles.intro}>
-        <Text style={styles.title}>Whose Name?</Text>
+        <Text
+          accessibilityRole="header"
+          style={styles.title}
+          maxFontSizeMultiplier={1.5}
+        >
+          Whose Name?
+        </Text>
         <Text style={styles.lede}>
           Everyone puts a name in the hat. Nobody can tell whose handwriting it
           is.

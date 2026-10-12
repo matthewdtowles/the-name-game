@@ -4,7 +4,7 @@ import QRCode from "react-native-qrcode-svg";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useGame } from "../lib/game/GameContext";
-import { joinUrl, shareInvite, tvUrl } from "../lib/invite";
+import { joinUrl, shareInvite, spokenCode, tvUrl } from "../lib/invite";
 import { colors, fonts, space, type } from "../lib/theme";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
@@ -70,13 +70,17 @@ export function Lobby({ room }: { room: RoomView }) {
       <YourSlip submittedName={room.you.submittedName} />
       {isHost ? (
         <View style={styles.section}>
-          <Text style={styles.heading}>Game settings</Text>
+          <Text accessibilityRole="header" style={styles.heading}>
+            Game settings
+          </Text>
           <Reminders room={room} />
           <RevealPace room={room} />
         </View>
       ) : null}
       <View style={styles.section}>
-        <Text style={styles.heading}>Players, in seat order</Text>
+        <Text accessibilityRole="header" style={styles.heading}>
+          Players, in seat order
+        </Text>
         <PlayerList
           room={room}
           onRemove={
@@ -106,10 +110,15 @@ function Invite({ code }: { code: string }) {
 
   return (
     <View style={styles.invite}>
-      <Text style={styles.heading}>Invite players with this code</Text>
+      <Text accessibilityRole="header" style={styles.heading}>
+        Invite players with this code
+      </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={showQr ? "Hide QR code" : "Show QR code"}
+        accessibilityLabel={
+          showQr ? "QR code to join" : `Code ${spokenCode(code)}`
+        }
+        accessibilityHint={showQr ? "Shows the code" : "Shows a QR code"}
         onPress={() => setShowQr((v) => !v)}
         style={styles.codeSlipWrap}
       >
@@ -122,7 +131,9 @@ function Invite({ code }: { code: string }) {
               backgroundColor={colors.paper}
             />
           ) : (
-            <Text style={styles.code}>{code}</Text>
+            <Text style={styles.code} maxFontSizeMultiplier={1.2}>
+              {code}
+            </Text>
           )}
         </Slip>
       </Pressable>
@@ -190,7 +201,9 @@ function YourSlip({ submittedName }: { submittedName: string | null }) {
   if (!editing) {
     return (
       <View style={styles.section}>
-        <Text style={styles.heading}>Your slip</Text>
+        <Text accessibilityRole="header" style={styles.heading}>
+          Your slip
+        </Text>
         <Slip tilt={1.5}>
           <Text style={styles.slipName}>{submittedName}</Text>
         </Slip>
@@ -271,7 +284,13 @@ function Reminders({ room }: { room: RoomView }) {
         disabled={count === 0}
         onPress={() => set(count - 1)}
       />
-      <Text style={styles.count}>{count}</Text>
+      <Text
+        style={styles.count}
+        accessibilityLabel={count === 1 ? "1 reminder" : `${count} reminders`}
+        accessibilityLiveRegion="polite"
+      >
+        {count}
+      </Text>
       <Stepper
         label="More reminders"
         symbol="+"
@@ -303,6 +322,9 @@ function RevealPace({ room }: { room: RoomView }) {
             <Pressable
               key={pace ?? "hand"}
               accessibilityRole="button"
+              accessibilityLabel={
+                pace === null ? "By hand" : `${pace} seconds each`
+              }
               accessibilityState={{ selected }}
               onPress={() =>
                 game.send({

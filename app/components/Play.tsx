@@ -1,6 +1,7 @@
 import type { GameView, PlayerView, RoomView } from "@tng/shared";
 import { StyleSheet, Text, View } from "react-native";
 
+import { useAnnounce } from "../lib/announce";
 import { useGame } from "../lib/game/GameContext";
 import {
   bystanders,
@@ -21,14 +22,20 @@ import { Slip } from "./Slip";
 export function Play({ room }: { room: RoomView }) {
   const game = useGame();
   const play = room.game;
-  if (!play) return null;
   const you = room.you.playerId;
   const isHost = you === room.hostId;
   const teams = teamsOf(room.players);
-  const turnTeam = teams.find((t) => t.leader.id === play.turn);
+  const turnTeam = teams.find((t) => t.leader.id === play?.turn);
   const yourTeam = room.players.find((p) => p.id === you)?.team ?? null;
-  const yourTurn = yourTeam === play.turn;
+  const yourTurn = yourTeam !== null && yourTeam === play?.turn;
   const left = room.remindersLeft;
+  const title = yourTurn
+    ? "Your team’s turn"
+    : turnTeam
+      ? `${turnTeam.leader.displayName}’s team’s turn`
+      : "Game on";
+  useAnnounce(title);
+  if (!play) return null;
 
   return (
     <Screen
@@ -61,12 +68,12 @@ export function Play({ room }: { room: RoomView }) {
       }
     >
       <View style={styles.intro}>
-        <Text style={styles.title}>
-          {yourTurn
-            ? "Your team’s turn"
-            : turnTeam
-              ? `${turnTeam.leader.displayName}’s team’s turn`
-              : "Game on"}
+        <Text
+          accessibilityRole="header"
+          accessibilityLiveRegion="polite"
+          style={styles.title}
+        >
+          {title}
         </Text>
         <Text style={styles.body}>
           {yourTeam === null
@@ -113,8 +120,15 @@ function Pending({ room, play }: { room: RoomView; play: GameView }) {
   const game = useGame();
   const pending = play.pending;
   const words = describeGuess(play, room.players);
-  if (!pending || !words) return null;
   const you = room.you.playerId;
+  const said =
+    words && pending
+      ? you === pending.target
+        ? `${words.guesser} is guessing your name. Did they get it?`
+        : `${words.guesser} is guessing ${words.target}.`
+      : null;
+  useAnnounce(said);
+  if (!pending || !words) return null;
   const isTarget = you === pending.target;
   const isHost = you === room.hostId;
   const yourTeam = room.players.find((p) => p.id === you)?.team;
@@ -123,10 +137,8 @@ function Pending({ room, play }: { room: RoomView; play: GameView }) {
 
   return (
     <Slip tilt={-1} style={styles.pending}>
-      <Text style={styles.pendingText}>
-        {isTarget
-          ? `${words.guesser} is guessing your name. Did they get it?`
-          : `${words.guesser} is guessing ${words.target}.`}
+      <Text style={styles.pendingText} accessibilityLiveRegion="polite">
+        {said}
       </Text>
       {isTarget || isHost ? (
         <View style={styles.row}>
@@ -178,17 +190,21 @@ function TeamCard({
   yourName: string | null;
   onGuess: () => void;
 }) {
+  const status = hasTurn
+    ? "Guessing now"
+    : team.members.length === 1
+      ? "1 player"
+      : `${team.members.length} players`;
   return (
     <View style={[styles.team, hasTurn && styles.turn]}>
-      <View style={styles.teamHeader}>
+      <View
+        style={styles.teamHeader}
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={`${teamName(team, you)}, ${status}`}
+      >
         <Text style={styles.teamName}>{teamName(team, you)}</Text>
-        <Text style={[styles.size, hasTurn && styles.guessing]}>
-          {hasTurn
-            ? "Guessing now"
-            : team.members.length === 1
-              ? "1 player"
-              : `${team.members.length} players`}
-        </Text>
+        <Text style={[styles.size, hasTurn && styles.guessing]}>{status}</Text>
       </View>
       {team.members.map((p) => (
         <Member key={p.id} player={p} you={you} yourName={yourName} />
@@ -216,7 +232,18 @@ function Member({
 }) {
   const name = player.name ?? (player.id === you ? yourName : null);
   return (
-    <View style={styles.member}>
+    <View
+      style={styles.member}
+      accessible
+      accessibilityLabel={[
+        player.displayName,
+        player.id === you ? "you" : null,
+        player.connected ? null : "away",
+        name ? `wrote ${name}` : "name still secret",
+      ]
+        .filter(Boolean)
+        .join(", ")}
+    >
       <Text style={[styles.memberName, !player.connected && styles.away]}>
         {player.displayName}
         {player.id === you ? <Text style={styles.aside}> (you)</Text> : null}

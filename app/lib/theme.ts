@@ -1,13 +1,16 @@
 // A game table at night, with paper slips on it. Every name is set in the same
 // typeface on the same slip, which is the point: no handwriting to recognize.
+// Text meets WCAG AA contrast (white on marker is 4.6:1), and `edge` outlines
+// controls at 3:1 against the table.
 
 export const colors = {
   table: "#211C36",
   tableRaised: "#2C2648",
   line: "#433B68",
+  edge: "#7A71A6",
   paper: "#FFF4D6",
   ink: "#1E1A2E",
-  marker: "#E5484D",
+  marker: "#DC3036",
   felt: "#6CCB8B",
   dusk: "#A49FC2",
 } as const;

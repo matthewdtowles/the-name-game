@@ -94,7 +94,10 @@ function Lobby({ screen, k }: { screen: ScreenView; k: number }) {
   return (
     <View style={[styles.lobby, { gap: space.xxl * k }]}>
       <View style={[styles.join, { gap: space.xl * k }]}>
-        <Text style={[styles.title, { fontSize: 64 * k, lineHeight: 70 * k }]}>
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { fontSize: 64 * k, lineHeight: 70 * k }]}
+        >
           Whose Name?
         </Text>
         <Text style={[styles.body, { fontSize: 28 * k, lineHeight: 38 * k }]}>
@@ -186,7 +189,10 @@ function Play({ screen, k }: { screen: ScreenView; k: number }) {
   const left = screen.remindersLeft;
   return (
     <View style={{ gap: space.xl * k }}>
-      <Text style={[styles.title, { fontSize: 72 * k, lineHeight: 80 * k }]}>
+      <Text
+        accessibilityRole="header"
+        style={[styles.title, { fontSize: 72 * k, lineHeight: 80 * k }]}
+      >
         {turn ? `${turn.leader.displayName}’s team’s turn` : "Game on"}
       </Text>
       <Text style={[styles.body, { fontSize: 30 * k, lineHeight: 40 * k }]}>
@@ -245,7 +251,10 @@ function Over({
   const { title, detail } = winnersText(screen);
   return (
     <View style={[styles.center, { gap: space.xl * k }]}>
-      <Text style={[styles.title, { fontSize: 88 * k, lineHeight: 96 * k }]}>
+      <Text
+        accessibilityRole="header"
+        style={[styles.title, { fontSize: 88 * k, lineHeight: 96 * k }]}
+      >
         {title}
       </Text>
       {detail ? (
