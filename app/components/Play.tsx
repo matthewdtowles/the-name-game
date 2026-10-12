@@ -33,7 +33,6 @@ export function Play({ room }: { room: RoomView }) {
   useEffect(() => {
     if (timeUp) send({ type: "timeUp", turn: timeUp });
   }, [send, timeUp]);
-  if (!play) return null;
   const teams = teamsOf(room.players);
   const turnTeam = teams.find((t) => t.leader.id === play?.turn);
   const yourTeam = room.players.find((p) => p.id === you)?.team ?? null;
