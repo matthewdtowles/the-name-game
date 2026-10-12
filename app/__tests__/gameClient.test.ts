@@ -47,6 +47,7 @@ const room: RoomView = {
     revealSeconds: null,
     turnSeconds: null,
     prompt: null,
+    sounds: true,
   },
   hostId: "p1",
   players: [

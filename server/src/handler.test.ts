@@ -148,6 +148,7 @@ describe("messages", () => {
         revealSeconds: null,
         turnSeconds: 30,
         prompt: null,
+        sounds: true,
       },
     });
     await send("c-host", { type: "submitName", name: "Cher" });
@@ -366,6 +367,7 @@ describe("usage", () => {
         revealSeconds: null,
         turnSeconds: null,
         prompt: null,
+        sounds: true,
       },
     });
     await send("c-host", { type: "submitName", name: "Cher" });

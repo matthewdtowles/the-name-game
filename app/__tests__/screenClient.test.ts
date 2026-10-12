@@ -37,6 +37,7 @@ const screen: ScreenView = {
   remindersLeft: 1,
   turnSeconds: null,
   prompt: null,
+  sounds: true,
   reveal: null,
   game: null,
 };

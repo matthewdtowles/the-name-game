@@ -15,6 +15,8 @@ import type { Status } from "../lib/game/connection";
 import { ScreenClient } from "../lib/game/screenClient";
 import { tvCodeStorage } from "../lib/game/storage";
 import { joinUrl } from "../lib/invite";
+import { Arrive, Grows, Pop, Unfold } from "../lib/motion";
+import { sceneOf, useGameSounds, useSoundAllowed } from "../lib/sounds";
 import { describeGuess, teamsOf } from "../lib/teams";
 import { colors, fonts, space } from "../lib/theme";
 import { clockText, useTurnClock } from "../lib/turnClock";
@@ -64,6 +66,9 @@ export function TvView({
   // Type scales with the screen, from a laptop up to a big TV.
   const { width } = useWindowDimensions();
   const k = Math.min(Math.max(width / 1280, 0.6), 2);
+  const sounds = screen?.sounds ?? false;
+  useGameSounds(sceneOf(screen, screen?.turnSeconds ?? null), sounds);
+  const allowed = useSoundAllowed();
 
   return (
     <View style={styles.frame}>
@@ -83,6 +88,11 @@ export function TvView({
       {screen && status !== "open" ? (
         <Text style={[styles.reconnecting, { fontSize: 18 * k }]}>
           Reconnecting…
+        </Text>
+      ) : null}
+      {sounds && !allowed ? (
+        <Text style={[styles.soundHint, { fontSize: 18 * k }]}>
+          Click or press any key for sound
         </Text>
       ) : null}
     </View>
@@ -155,21 +165,23 @@ function Reveal({
         <Text style={[styles.body, { fontSize: 28 * k }]}>
           Name {reveal.index + 1} of {reveal.total}
         </Text>
-        <Slip
-          tilt={reveal.index % 2 === 0 ? -2 : 2}
-          style={[styles.bigSlip, { paddingVertical: space.xxl * k }]}
-        >
-          <Text
-            style={[
-              styles.slipName,
-              { fontSize: 120 * k, lineHeight: 128 * k },
-            ]}
-            adjustsFontSizeToFit
-            numberOfLines={2}
+        <Unfold key={reveal.index} style={styles.bigSlip}>
+          <Slip
+            tilt={reveal.index % 2 === 0 ? -2 : 2}
+            style={[styles.bigSlipPaper, { paddingVertical: space.xxl * k }]}
           >
-            {reveal.slips[0]}
-          </Text>
-        </Slip>
+            <Text
+              style={[
+                styles.slipName,
+                { fontSize: 120 * k, lineHeight: 128 * k },
+              ]}
+              adjustsFontSizeToFit
+              numberOfLines={2}
+            >
+              {reveal.slips[0]}
+            </Text>
+          </Slip>
+        </Unfold>
       </View>
     );
   }
@@ -219,8 +231,10 @@ function Play({ screen, k }: { screen: ScreenView; k: number }) {
       </Text>
       <View style={[styles.board, { gap: space.xl * k }]}>
         {teams.map((team) => (
-          <View
+          <Grows
             key={team.leader.id}
+            count={team.members.length}
+            radius={TEAM_RADIUS}
             style={[
               styles.team,
               { padding: space.lg * k, gap: space.sm * k },
@@ -231,7 +245,7 @@ function Play({ screen, k }: { screen: ScreenView; k: number }) {
               {team.leader.displayName}’s team
             </Text>
             {team.members.map((p) => (
-              <View key={p.id}>
+              <Arrive key={p.id}>
                 <Text style={[styles.player, { fontSize: 26 * k }]}>
                   {p.displayName}
                 </Text>
@@ -243,9 +257,9 @@ function Play({ screen, k }: { screen: ScreenView; k: number }) {
                 >
                   {p.name ?? "?"}
                 </Text>
-              </View>
+              </Arrive>
             ))}
-          </View>
+          </Grows>
         ))}
       </View>
     </View>
@@ -265,12 +279,14 @@ function Over({
   const { title, detail } = winnersText(screen);
   return (
     <View style={[styles.center, { gap: space.xl * k }]}>
-      <Text
-        accessibilityRole="header"
-        style={[styles.title, { fontSize: 88 * k, lineHeight: 96 * k }]}
-      >
-        {title}
-      </Text>
+      <Pop>
+        <Text
+          accessibilityRole="header"
+          style={[styles.title, { fontSize: 88 * k, lineHeight: 96 * k }]}
+        >
+          {title}
+        </Text>
+      </Pop>
       {detail ? (
         <Text style={[styles.body, { fontSize: 30 * k, lineHeight: 40 * k }]}>
           {detail}
@@ -325,6 +341,8 @@ function Players({ screen, k }: { screen: ScreenView; k: number }) {
   );
 }
 
+const TEAM_RADIUS = 18;
+
 const styles = StyleSheet.create({
   frame: {
     flex: 1,
@@ -341,6 +359,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: space.lg,
     right: space.xl,
+    fontFamily: fonts.regular,
+    color: colors.dusk,
+  },
+  soundHint: {
+    position: "absolute",
+    bottom: space.lg,
+    left: space.xl,
     fontFamily: fonts.regular,
     color: colors.dusk,
   },
@@ -361,7 +386,8 @@ const styles = StyleSheet.create({
   body: { fontFamily: fonts.regular, color: colors.dusk },
   code: { fontFamily: fonts.heavy, color: colors.ink },
   center: { alignItems: "center" },
-  bigSlip: { minWidth: "60%", maxWidth: "90%", alignItems: "center" },
+  bigSlip: { minWidth: "60%", maxWidth: "90%" },
+  bigSlipPaper: { alignItems: "center" },
   slipName: { fontFamily: fonts.heavy, color: colors.ink, textAlign: "center" },
   grid: {
     flexDirection: "row",
@@ -375,7 +401,7 @@ const styles = StyleSheet.create({
   board: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start" },
   team: {
     minWidth: 220,
-    borderRadius: 18,
+    borderRadius: TEAM_RADIUS,
     borderWidth: 2,
     borderColor: colors.line,
     backgroundColor: colors.tableRaised,

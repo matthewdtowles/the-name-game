@@ -2,6 +2,7 @@ import type { RoomView } from "@tng/shared";
 import { StyleSheet, Text, View } from "react-native";
 
 import { useGame } from "../lib/game/GameContext";
+import { Pop } from "../lib/motion";
 import { teamsOf } from "../lib/teams";
 import { colors, fonts, space, type } from "../lib/theme";
 import { Button } from "./Button";
@@ -103,13 +104,15 @@ function Winners({ room }: { room: RoomView }) {
   const { title, detail } = winnersText(room);
   return (
     <View style={styles.intro}>
-      <Text
-        accessibilityRole="header"
-        style={styles.title}
-        maxFontSizeMultiplier={1.5}
-      >
-        {title}
-      </Text>
+      <Pop>
+        <Text
+          accessibilityRole="header"
+          style={styles.title}
+          maxFontSizeMultiplier={1.5}
+        >
+          {title}
+        </Text>
+      </Pop>
       {detail ? <Text style={styles.body}>{detail}</Text> : null}
     </View>
   );

@@ -8,10 +8,19 @@ import { Reveal } from "../../components/Reveal";
 import { Screen } from "../../components/Screen";
 import { useGame } from "../../lib/game/GameContext";
 import { useGameBuzz } from "../../lib/haptics";
+import { sceneOf, useGameSounds } from "../../lib/sounds";
 
 export default function Room() {
   const game = useGame();
   useGameBuzz(game.room);
+  const room = game.room;
+  useGameSounds(
+    sceneOf(room, room?.settings.turnSeconds ?? null),
+    !!room &&
+      room.you.playerId === room.hostId &&
+      !room.tv &&
+      room.settings.sounds,
+  );
 
   // No session: never joined, left, or was removed.
   if (!game.session) return <Redirect href="/" />;

@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { useAnnounce } from "../lib/announce";
 import { useGame } from "../lib/game/GameContext";
+import { Unfold } from "../lib/motion";
 import { colors, fonts, space, type } from "../lib/theme";
 import { Button } from "./Button";
 import { Screen } from "./Screen";
@@ -118,16 +119,18 @@ function HostReveal({ room, reveal }: { room: RoomView; reveal: RevealView }) {
           ))}
         </View>
       ) : names ? (
-        <Slip tilt={index % 2 === 0 ? -2 : 2} style={styles.bigSlip}>
-          <Text
-            style={styles.bigName}
-            accessibilityLiveRegion="polite"
-            adjustsFontSizeToFit
-            numberOfLines={3}
-          >
-            {names[index]}
-          </Text>
-        </Slip>
+        <Unfold key={index} style={styles.unfold}>
+          <Slip tilt={index % 2 === 0 ? -2 : 2} style={styles.bigSlip}>
+            <Text
+              style={styles.bigName}
+              accessibilityLiveRegion="polite"
+              adjustsFontSizeToFit
+              numberOfLines={3}
+            >
+              {names[index]}
+            </Text>
+          </Slip>
+        </Unfold>
       ) : (
         <Text
           style={styles.onTv}
@@ -153,11 +156,8 @@ const styles = StyleSheet.create({
   title: { ...type.display, color: colors.paper },
   body: { ...type.body, color: colors.dusk },
   instructions: { paddingTop: space.xxl },
-  bigSlip: {
-    minHeight: 260,
-    justifyContent: "center",
-    marginVertical: space.xl,
-  },
+  unfold: { marginVertical: space.xl },
+  bigSlip: { minHeight: 260, justifyContent: "center" },
   bigName: {
     fontFamily: fonts.heavy,
     fontSize: 52,

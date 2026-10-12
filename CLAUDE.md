@@ -40,7 +40,8 @@ The iOS and Android apps build on EAS (`app/eas.json`): `preview` builds talk to
 staging and `production` builds to prod. The `ship` workflow (run by hand) builds
 both and submits them to TestFlight and a Play track. The app's version is the
 latest release tag (`app/app.config.ts`). `app/scripts/make-icons.sh` redraws
-the icons and splash with ImageMagick.
+the icons and splash with ImageMagick. `app/scripts/make-sounds.mjs` draws the
+sounds.
 
 Merging to `main` deploys from CI: staging (stacks, web publish, smoke test),
 then prod the same way. Deploy by hand only to try something on staging; after
@@ -63,6 +64,8 @@ then prod the same way. Deploy by hand only to try something on staging; after
   watch. The reveal's position lives in the room, so the host's phone is the
   remote; with a pace set, the host's phone advances it. The turn timer works
   the same way: every screen counts down, and the host's phone calls `timeUp`.
+  Sounds play on the TV, or on the host's phone when there's no TV, so a room
+  of phones never chimes at once (`app/lib/sounds.ts`).
 - **The rules engine is pure:** no I/O, no clock, no `Math.random`. The server
   supplies ids, tokens, and a crypto-backed random source, so tests can pass a
   deterministic one.
