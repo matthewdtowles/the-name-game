@@ -32,6 +32,16 @@ jest.mock("expo-router", () => ({
     ),
 }));
 
+// Each player reports the sound it was made from when played.
+const mockPlayed = jest.fn();
+jest.mock("expo-audio", () => ({
+  setAudioModeAsync: () => Promise.resolve(),
+  createAudioPlayer: (source: unknown) => ({
+    seekTo: () => Promise.resolve(),
+    play: () => mockPlayed(source),
+  }),
+}));
+
 function room(overrides: Partial<RoomView> = {}): RoomView {
   return {
     code: "WXYZ",
@@ -42,6 +52,7 @@ function room(overrides: Partial<RoomView> = {}): RoomView {
       revealSeconds: null,
       turnSeconds: null,
       prompt: null,
+      sounds: true,
     },
     hostId: "p1",
     players: [
@@ -253,6 +264,7 @@ describe("Lobby", () => {
         revealSeconds: null,
         turnSeconds: null,
         prompt: "Cartoon characters",
+        sounds: true,
       },
     });
 
@@ -267,6 +279,7 @@ describe("Lobby", () => {
         revealSeconds: null,
         turnSeconds: null,
         prompt: "Only our pets",
+        sounds: true,
       },
     });
   });
@@ -277,6 +290,7 @@ describe("Lobby", () => {
       revealSeconds: null,
       turnSeconds: null,
       prompt: "Musicians",
+      sounds: true,
     };
     await render(
       <Lobby
@@ -301,6 +315,23 @@ describe("Lobby", () => {
         revealSeconds: null,
         turnSeconds: 60,
         prompt: null,
+        sounds: true,
+      },
+    });
+  });
+
+  it("lets the host turn the sounds off", async () => {
+    await render(<Lobby room={room()} />);
+    expect(screen.getByText(/They play on your phone/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Sounds off" }));
+    expect(mockGame.send).toHaveBeenLastCalledWith({
+      type: "updateSettings",
+      settings: {
+        reminders: 1,
+        revealSeconds: null,
+        turnSeconds: null,
+        prompt: null,
+        sounds: false,
       },
     });
   });
@@ -317,6 +348,7 @@ describe("Lobby", () => {
         revealSeconds: null,
         turnSeconds: null,
         prompt: null,
+        sounds: true,
       },
     });
   });
@@ -344,6 +376,7 @@ describe("Lobby", () => {
         revealSeconds: 8,
         turnSeconds: null,
         prompt: null,
+        sounds: true,
       },
     });
   });
@@ -409,6 +442,7 @@ describe("Reveal", () => {
         revealSeconds: 5,
         turnSeconds: null,
         prompt: null,
+        sounds: true,
       };
       await render(
         <Reveal
@@ -453,6 +487,7 @@ describe("TV", () => {
     remindersLeft: 1,
     turnSeconds: null,
     prompt: null,
+    sounds: true,
     reveal: null,
     game: null,
     ...overrides,
@@ -530,6 +565,32 @@ describe("TV", () => {
     expect(screen.getByText("Prince")).toBeTruthy();
   });
 
+  it("plays a sound for a right guess, unless the host turned them off", async () => {
+    const players = room().players.map((p) => ({ ...p, team: p.id }));
+    const game = { turn: "p1", pending: null, winners: null, canUndo: false };
+    const caught = players.map((p) =>
+      p.id === "p2" ? { ...p, team: "p1", name: "Prince" } : p,
+    );
+    const tv = (overrides: Partial<ScreenView>) => (
+      <TvView
+        status="open"
+        screen={tvScreen({ phase: "play", players, game, ...overrides })}
+        onNewGame={jest.fn()}
+      />
+    );
+    mockPlayed.mockClear();
+    await render(tv({}));
+    await screen.rerender(tv({ players: caught }));
+    expect(mockPlayed).toHaveBeenCalledWith(
+      require("../assets/sounds/correct.wav"),
+    );
+
+    mockPlayed.mockClear();
+    await screen.rerender(tv({ sounds: false }));
+    await screen.rerender(tv({ sounds: false, players: caught }));
+    expect(mockPlayed).not.toHaveBeenCalled();
+  });
+
   it("offers a new game once it's over", async () => {
     const onNewGame = jest.fn();
     const game = { turn: "p1", pending: null, winners: [], canUndo: false };
@@ -593,6 +654,7 @@ describe("Play", () => {
         revealSeconds: null,
         turnSeconds: 30,
         prompt: null,
+        sounds: true,
       };
       await render(
         <Play

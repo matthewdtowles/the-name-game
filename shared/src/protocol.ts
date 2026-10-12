@@ -62,6 +62,9 @@ export const Settings = z.object({
   // What kind of names go in the hat this game ("Cartoon characters"); null
   // means anyone.
   prompt: z.string().trim().min(1).max(PROMPT_MAX).nullable().default(null),
+  // Whether the TV, or the host's phone when there's no TV, plays the game's
+  // sounds.
+  sounds: z.boolean().default(true),
 });
 
 export const ClientMessage = z.discriminatedUnion("type", [
@@ -204,6 +207,7 @@ export const ScreenView = z.object({
   remindersLeft: z.int().min(0),
   turnSeconds: z.int().nullable(),
   prompt: z.string().nullable(),
+  sounds: z.boolean().default(true),
   reveal: z
     .object({
       index: z.int().min(0),

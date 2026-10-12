@@ -80,6 +80,7 @@ export function Lobby({ room }: { room: RoomView }) {
           <Reminders room={room} />
           <RevealPace room={room} />
           <TurnClock room={room} />
+          <Sounds room={room} />
         </View>
       ) : null}
       <View style={styles.section}>
@@ -477,6 +478,50 @@ function TurnClock({ room }: { room: RoomView }) {
                 style={[styles.chipText, selected && styles.chipTextSelected]}
               >
                 {clock === null ? "Off" : `${clock} s`}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// Whether the game plays its sounds, wherever they're coming from.
+function Sounds({ room }: { room: RoomView }) {
+  const game = useGame();
+  const on = room.settings.sounds;
+  return (
+    <View style={styles.pace}>
+      <Text style={styles.strong}>Sounds</Text>
+      <Text style={styles.hint}>
+        {!on
+          ? "The game stays quiet."
+          : room.tv
+            ? "They play on the TV."
+            : "They play on your phone. With a TV, they play there instead."}
+      </Text>
+      <View style={styles.chips}>
+        {[true, false].map((sounds) => {
+          const selected = sounds === on;
+          return (
+            <Pressable
+              key={String(sounds)}
+              accessibilityRole="button"
+              accessibilityLabel={sounds ? "Sounds on" : "Sounds off"}
+              accessibilityState={{ selected }}
+              onPress={() =>
+                game.send({
+                  type: "updateSettings",
+                  settings: { ...room.settings, sounds },
+                })
+              }
+              style={[styles.chip, selected && styles.chipSelected]}
+            >
+              <Text
+                style={[styles.chipText, selected && styles.chipTextSelected]}
+              >
+                {sounds ? "On" : "Off"}
               </Text>
             </Pressable>
           );

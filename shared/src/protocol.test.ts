@@ -44,6 +44,7 @@ describe("ClientMessage", () => {
           revealSeconds: null,
           turnSeconds: null,
           prompt: null,
+          sounds: true,
         },
       },
       { type: "kick", playerId: "p1" },
@@ -108,6 +109,7 @@ describe("ClientMessage", () => {
           revealSeconds: null,
           turnSeconds: null,
           prompt: null,
+          sounds: true,
         },
       };
       assert.equal(
@@ -130,6 +132,7 @@ describe("ServerMessage", () => {
         revealSeconds: null,
         turnSeconds: null,
         prompt: null,
+        sounds: true,
       },
       hostId: "p1",
       players: [
@@ -184,6 +187,7 @@ describe("ServerMessage", () => {
         remindersLeft: 0,
         turnSeconds: 60,
         prompt: null,
+        sounds: true,
         reveal: { index: 1, total: 3, slips: ["Cher"] },
         game: null,
       },
@@ -224,6 +228,17 @@ describe("ServerMessage", () => {
     assert.equal(
       parsed.type === "updateSettings" && parsed.settings.turnSeconds,
       null,
+    );
+  });
+
+  it("defaults sounds to on for clients that don't send it", () => {
+    const parsed = ClientMessage.parse({
+      type: "updateSettings",
+      settings: { reminders: 1, revealSeconds: null },
+    });
+    assert.equal(
+      parsed.type === "updateSettings" && parsed.settings.sounds,
+      true,
     );
   });
 

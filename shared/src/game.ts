@@ -119,6 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
   revealSeconds: null,
   turnSeconds: null,
   prompt: null,
+  sounds: true,
 };
 
 // A room starts with its host, or, when a TV creates it, with nobody yet.
@@ -446,6 +447,7 @@ export function screenFor(room: Room): ScreenView {
     remindersLeft: room.remindersLeft,
     turnSeconds: room.settings.turnSeconds ?? null,
     prompt: room.settings.prompt ?? null,
+    sounds: room.settings.sounds ?? true,
     reveal: revealing
       ? {
           index: revealing.index,

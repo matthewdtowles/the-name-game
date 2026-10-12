@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { useAnnounce } from "../lib/announce";
 import { useGame } from "../lib/game/GameContext";
+import { Arrive, Grows } from "../lib/motion";
 import {
   bystanders,
   describeGuess,
@@ -219,7 +220,11 @@ function TeamCard({
       ? "1 player"
       : `${team.members.length} players`;
   return (
-    <View style={[styles.team, hasTurn && styles.turn]}>
+    <Grows
+      count={team.members.length}
+      radius={TEAM_RADIUS}
+      style={[styles.team, hasTurn && styles.turn]}
+    >
       <View
         style={styles.teamHeader}
         accessible
@@ -230,7 +235,9 @@ function TeamCard({
         <Text style={[styles.size, hasTurn && styles.guessing]}>{status}</Text>
       </View>
       {team.members.map((p) => (
-        <Member key={p.id} player={p} you={you} yourName={yourName} />
+        <Arrive key={p.id}>
+          <Member player={p} you={you} yourName={yourName} />
+        </Arrive>
       ))}
       {canGuess ? (
         <Button
@@ -239,7 +246,7 @@ function TeamCard({
           onPress={onGuess}
         />
       ) : null}
-    </View>
+    </Grows>
   );
 }
 
@@ -287,6 +294,8 @@ function Watching({ players }: { players: PlayerView[] }) {
   );
 }
 
+const TEAM_RADIUS = 14;
+
 const styles = StyleSheet.create({
   intro: { gap: space.md, paddingTop: space.xl },
   title: { ...type.title, color: colors.paper },
@@ -301,7 +310,7 @@ const styles = StyleSheet.create({
   team: {
     gap: space.sm,
     padding: space.lg,
-    borderRadius: 14,
+    borderRadius: TEAM_RADIUS,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.tableRaised,

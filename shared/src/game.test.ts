@@ -252,6 +252,7 @@ describe("settings", () => {
         revealSeconds: null,
         turnSeconds: null,
         prompt: null,
+        sounds: true,
       },
     });
     assert.equal(room.remindersLeft, 3);
@@ -263,6 +264,7 @@ describe("settings", () => {
       revealSeconds: null,
       turnSeconds: null,
       prompt: null,
+      sounds: true,
     };
     assert.equal(
       reason(lobby("Sam", "Alex"), {
@@ -343,6 +345,7 @@ describe("reminders", () => {
         revealSeconds: null,
         turnSeconds: null,
         prompt: null,
+        sounds: true,
       },
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
@@ -523,6 +526,18 @@ describe("TVs", () => {
     assert.equal(screenFor(room).reveal, null);
     assert.equal(JSON.stringify(screenFor(room)).includes("Cher"), false);
   });
+
+  it("plays sounds unless the host turned them off, even in older rooms", () => {
+    const room = lobby("Sam");
+    assert.equal(screenFor(room).sounds, true);
+    const quiet = { ...room, settings: { ...room.settings, sounds: false } };
+    assert.equal(screenFor(quiet).sounds, false);
+    const { sounds: _, ...older } = room.settings;
+    assert.equal(
+      screenFor({ ...room, settings: older as typeof room.settings }).sounds,
+      true,
+    );
+  });
 });
 
 describe("stepping through the reveal", () => {
@@ -591,7 +606,13 @@ describe("the guessing game", () => {
     room = must(room, {
       type: "updateSettings",
       playerId: "p0",
-      settings: { reminders, revealSeconds: null, turnSeconds, prompt: null },
+      settings: {
+        reminders,
+        revealSeconds: null,
+        turnSeconds,
+        prompt: null,
+        sounds: true,
+      },
     });
     room = must(room, { type: "startReveal", playerId: "p0" });
     return must(room, { type: "finishReveal", playerId: "p0" });
